@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #fff7ed;
+  --color-brand-100: #ffeaaf;
+  --color-brand-200: #ffd87c;
+  --color-brand-300: #ffc142;
+  --color-brand-400: #ffa516;
+  --color-brand-500: #ff8c00;
+  --color-brand-600: #e06c00;
+  --color-brand-700: #ba5100;
+  --color-brand-800: #933d00;
+  --color-brand-900: #7a3304;
+  --color-brand-950: #421800;
+
+  --font-arabic: 'Cairo', 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-english: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+:root {
+  font-family: var(--font-english);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+[dir="rtl"],
+[lang="ar"],
+.font-arabic {
+  font-family: var(--font-arabic);
+}
+
+[dir="ltr"],
+[lang="en"],
+.font-english {
+  font-family: var(--font-english);
+}
+
+/* Comprehensive Arabic & English Input Typing Support */
+input,
+textarea,
+select {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
+input::placeholder,
+textarea::placeholder {
+  text-align: start;
+}
+
+/* Number inputs and code badges preserve clear numeric rendering */
+input[type="number"],
+.font-mono {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
