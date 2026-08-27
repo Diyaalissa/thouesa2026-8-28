@@ -151,7 +151,7 @@ export const Header: React.FC<HeaderProps> = ({
           className="flex items-center gap-3 cursor-pointer"
           onClick={() => onRoleChange('PUBLIC')}
         >
-          <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm border border-slate-200 overflow-hidden p-0.5 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-sm border border-slate-700 overflow-hidden p-1 shrink-0">
             <img src={logoUrl || "/logo.png"} alt="Thouesa" className="w-full h-full object-contain" />
           </div>
           <div>

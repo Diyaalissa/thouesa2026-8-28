@@ -154,7 +154,7 @@ export default function App() {
 
   const fetchWallet = async (userId: string) => {
     try {
-      const res = await safeFetchJson(`/api/escrow/wallet/${userId}`);
+      const res = await safeFetchJson(`/api/wallets/${userId}`);
       if (res?.wallet) {
         setWallet(res.wallet);
       }
@@ -252,10 +252,10 @@ export default function App() {
   const handleWithdrawEarnings = async (amount: number, payoutMethod: string) => {
     try {
       const effectiveUserId = currentUser?.id || 'usr-traveler-202';
-      const res = await safeFetchJson('/api/escrow/withdraw', {
+      const res = await safeFetchJson('/api/wallets/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: effectiveUserId, amount, payoutMethod }),
+        body: JSON.stringify({ userId: effectiveUserId, employeeId: 'emp-amm-101', amount, payoutMethod }),
       });
 
       if (res?.success) {
@@ -447,13 +447,13 @@ export default function App() {
         id="thouesa-root-canvas"
         className={`min-h-screen flex flex-col antialiased transition-colors duration-200 ${
           activeTheme.bgClass
-        } ${isAr ? 'font-arabic' : 'font-english'}`}
+        } ${themeMode !== 'light' ? 'dark' : ''} ${isAr ? 'font-arabic' : 'font-english'}`}
         dir={isAr ? 'rtl' : 'ltr'}
         lang={locale}
       >
         {/* Brand Header */}
         <Header
-          logoUrl="https://www.gstatic.com/mobilesdk/250721_mobilesdk/mono_firebase_dark.svg"
+          logoUrl="/logo.png"
           currentUser={currentUser}
           wallet={wallet}
           currentRole={currentRole}

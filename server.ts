@@ -12,6 +12,7 @@ import { manifestsRouter } from './server/routes/manifests';
 import { usersRouter } from './server/routes/users';
 import { notificationsRouter } from './server/routes/notifications';
 import { ratesRouter } from './server/routes/rates';
+import { walletRouter } from './server/routes/wallets';
 
 async function startServer() {
   const app = express();
@@ -45,6 +46,7 @@ async function startServer() {
   app.use('/api/notifications', notificationsRouter);
   app.use('/api/rates', ratesRouter);
   app.use('/api/customs-rates', ratesRouter);
+  app.use('/api/wallets', walletRouter);
 
   // Catch-all 404 for unhandled API routes (ensures JSON response instead of HTML)
   app.all('/api/*', (req, res) => {

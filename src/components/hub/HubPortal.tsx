@@ -451,7 +451,7 @@ export const HubPortal: React.FC<HubPortalProps> = ({
               onClick={() => setActiveTab('AIRPORT_TRANSIT')}
               className={`w-full flex items-center ${isSidebarOpen ? 'justify-between gap-3 px-3.5 py-3' : 'justify-center p-3 relative'} rounded-xl transition-all cursor-pointer text-start ${
                 activeTab === 'AIRPORT_TRANSIT'
-                  ? 'bg-sky-600 text-white shadow-md font-bold'
+                  ? 'bg-brand-500 text-white shadow-md font-bold'
                   : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
               }`}
               title={!isSidebarOpen ? (isAr ? '3. الرحلات والوصول بالمطار' : '3. Flight & Airport Transit') : undefined}
@@ -480,7 +480,7 @@ export const HubPortal: React.FC<HubPortalProps> = ({
                   {airportTransitShipments.length}
                 </span>
               ) : (
-                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-sky-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm">
+                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-brand-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm">
                   {airportTransitShipments.length}
                 </span>
               )}

@@ -67,6 +67,27 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
   onApproveWeightDiscrepancy,
 }) => {
   const isAr = locale === 'ar';
+
+  const handleDeposit = async () => {
+    if (depositAmount <= 0) return;
+    setIsDepositing(true);
+    try {
+      const res = await fetch('/api/wallets/deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id, employeeId: 'emp-amm-101', amount: depositAmount, currency: 'USD' })
+      });
+      if (res.ok) {
+        alert(isAr ? 'تم شحن المحفظة بنجاح!' : 'Wallet topped up successfully!');
+        // Refresh by reloading for now or calling a passed refresh method
+        window.location.reload();
+      }
+    } catch(err) {
+      console.error(err);
+    }
+    setIsDepositing(false);
+  };
+
   const ArrowIcon = isAr ? ArrowLeft : ArrowRight;
 
   const activeHubs = React.useMemo(
@@ -89,6 +110,8 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
   }, [activeHubs]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [depositAmount, setDepositAmount] = useState<number>(100);
+  const [isDepositing, setIsDepositing] = useState(false);
   const [activeTab, setActiveTab] = useState<
     'MY_SHIPMENTS' | 'SEND_PARCEL' | 'INTERNATIONAL_BUY' | 'SPECIFIC_COUNTRY_BUY' | 'DISPUTES' | 'PROFILE' | 'WALLET'
   >('MY_SHIPMENTS');
@@ -455,6 +478,26 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
         >
           <div className="p-4 space-y-2 flex-1">
             <button
+              onClick={() => setActiveTab('PROFILE')}
+              className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
+                activeTab === 'PROFILE' ? 'bg-brand-500 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+              title={!isSidebarOpen ? (isAr ? 'الملف الشخصي' : 'Profile') : undefined}
+            >
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === 'PROFILE' ? 'bg-brand-600 text-white' : 'bg-brand-100 text-brand-600'}`}>
+                <UserIcon className="w-4 h-4" />
+              </div>
+              {isSidebarOpen && (
+                <div className="truncate">
+                  <div className="text-xs font-bold truncate">{isAr ? 'الملف الشخصي' : 'Profile'}</div>
+                  <div className={`text-[10px] truncate ${activeTab === 'PROFILE' ? 'text-brand-100' : 'text-slate-400'}`}>
+                    {isAr ? 'الإعدادات والهوية' : 'Settings & ID'}
+                  </div>
+                </div>
+              )}
+            </button>
+
+            <button
               onClick={() => setActiveTab('MY_SHIPMENTS')}
               className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
                 activeTab === 'MY_SHIPMENTS' ? 'bg-brand-600 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
@@ -557,37 +600,18 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
             <button
               onClick={() => setActiveTab('WALLET')}
               className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
-                activeTab === 'WALLET' ? 'bg-indigo-600 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'WALLET' ? 'bg-brand-500 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
               }`}
               title={!isSidebarOpen ? (isAr ? 'المحفظة المالية' : 'Wallet') : undefined}
             >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === 'WALLET' ? 'bg-indigo-700 text-white' : 'bg-indigo-100 text-indigo-700'}`}>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === 'WALLET' ? 'bg-brand-600 text-white' : 'bg-brand-100 text-brand-600'}`}>
                 <Wallet className="w-4 h-4" />
               </div>
               {isSidebarOpen && (
                 <div className="truncate">
                   <div className="text-xs font-bold truncate">{isAr ? 'المحفظة المالية' : 'Wallet'}</div>
-                  <div className={`text-[10px] truncate ${activeTab === 'WALLET' ? 'text-indigo-100' : 'text-slate-400'}`}>
+                  <div className={`text-[10px] truncate ${activeTab === 'WALLET' ? 'text-brand-100' : 'text-slate-400'}`}>
                     {isAr ? 'الرصيد والمدفوعات' : 'Balance & Payments'}
-                  </div>
-                </div>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('PROFILE')}
-              className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
-                activeTab === 'PROFILE' ? 'bg-indigo-600 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-              title={!isSidebarOpen ? (isAr ? 'الملف الشخصي' : 'Profile') : undefined}
-            >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === 'PROFILE' ? 'bg-indigo-700 text-white' : 'bg-indigo-100 text-indigo-700'}`}>
-                <UserIcon className="w-4 h-4" />
-              </div>
-              {isSidebarOpen && (
-                <div className="truncate">
-                  <div className="text-xs font-bold truncate">{isAr ? 'الملف الشخصي' : 'Profile'}</div>
-                  <div className={`text-[10px] truncate ${activeTab === 'PROFILE' ? 'text-indigo-100' : 'text-slate-400'}`}>
-                    {isAr ? 'الإعدادات والهوية' : 'Settings & ID'}
                   </div>
                 </div>
               )}
@@ -604,7 +628,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
         <div className="space-y-6">
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-white shadow-xl">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-12 h-12 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-brand-500/20 text-indigo-400 border border-brand-500/30 flex items-center justify-center">
                 <Wallet className="w-6 h-6" />
               </div>
               <div>
@@ -623,7 +647,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
             <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm space-y-6">
               <div>
                 <span className="text-xs text-slate-500 font-bold block mb-2">{isAr ? 'الرصيد المتاح' : 'Available Balance'}</span>
-                <div className="text-4xl font-black text-indigo-600">
+                <div className="text-4xl font-black text-brand-500">
                   {wallet ? formatCurrency(wallet.balance, wallet.currency) : '$0.00'}
                 </div>
               </div>
@@ -666,7 +690,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-500 mb-1.5">{isAr ? 'المبلغ ($)' : 'Amount ($)'}</label>
-                      <input type="number" min="10" placeholder="100" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                      <input type="number" min="10" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-500 mb-1.5">{isAr ? 'طريقة الدفع' : 'Payment Method'}</label>
@@ -678,8 +702,8 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                     </div>
                   </div>
                   <div className="pt-2">
-                    <button className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-colors shadow-lg shadow-indigo-600/20 w-full md:w-auto">
-                      {isAr ? 'متابعة الدفع' : 'Proceed to Payment'}
+                    <button onClick={handleDeposit} disabled={isDepositing} className="px-6 py-3 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-colors shadow-lg shadow-brand-500/20 w-full md:w-auto">
+                      {isDepositing ? '...' : (isAr ? 'متابعة الدفع' : 'Proceed to Payment')}
                     </button>
                   </div>
                </div>
@@ -1125,7 +1149,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                 onClick={() => setParcelCondition('NEW_COMMERCIAL')}
                 className={`p-3 rounded-xl border text-right transition-all cursor-pointer flex flex-col justify-between ${
                   parcelCondition === 'NEW_COMMERCIAL'
-                    ? 'bg-blue-950/60 border-blue-500 text-white ring-1 ring-blue-500'
+                    ? 'bg-blue-950/60 border-brand-500 text-white ring-1 ring-brand-500'
                     : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:bg-slate-850'
                 }`}
               >
@@ -1134,7 +1158,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                     <span className="font-bold text-xs text-blue-300">
                       {isAr ? 'بضائع تجارية جديدة' : 'New Commercial Items'}
                     </span>
-                    <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-500/40 rounded-md text-[10px] font-bold">
+                    <span className="px-2 py-0.5 bg-brand-500/20 text-blue-300 border border-brand-500/40 rounded-md text-[10px] font-bold">
                       {isAr ? `تعريفة تجارية (${liveParcelQuote.customsRatePercent}%)` : `Commercial ${liveParcelQuote.customsRatePercent}%`}
                     </span>
                   </div>
@@ -1514,6 +1538,27 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <input
+                      type="url"
+                      value={item.imageUrl || ''}
+                      onChange={(e) => updateStoreItem(idx, 'imageUrl', e.target.value)}
+                      placeholder={isAr ? 'رابط صورة المنتج (اختياري)' : 'Product Image URL (Optional)'}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={item.sizeVolume || ''}
+                      onChange={(e) => updateStoreItem(idx, 'sizeVolume', e.target.value)}
+                      placeholder={isAr ? 'الحجم / الوزن التقديري (مثل: 2 كجم، صندوق صغير)' : 'Est. Size/Weight (e.g., 2kg, small box)'}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <input
                     type="text"
@@ -1670,6 +1715,27 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                     <div className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-center font-black text-emerald-400">
                       ${item.totalCost.toFixed(2)}
                     </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <input
+                      type="url"
+                      value={item.imageUrl || ''}
+                      onChange={(e) => updateCountryItem(idx, 'imageUrl', e.target.value)}
+                      placeholder={isAr ? 'رابط صورة المنتج (اختياري)' : 'Product Image URL (Optional)'}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={item.sizeVolume || ''}
+                      onChange={(e) => updateCountryItem(idx, 'sizeVolume', e.target.value)}
+                      placeholder={isAr ? 'الحجم / الوزن التقديري (مثل: 2 كجم، صندوق صغير)' : 'Est. Size/Weight (e.g., 2kg, small box)'}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                    />
                   </div>
                 </div>
 

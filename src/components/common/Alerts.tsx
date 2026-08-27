@@ -85,11 +85,11 @@ export const Alerts: React.FC<AlertsProps> = ({ locale, onNavigateAction }) => {
       case 'KYC_SUBMITTED':
         return {
           icon: <ShieldCheck className="w-5 h-5 text-indigo-400" />,
-          accentBorder: 'border-indigo-500/40',
-          accentBg: 'bg-indigo-500/10 dark:bg-indigo-950/40',
+          accentBorder: 'border-brand-500/40',
+          accentBg: 'bg-brand-500/10 dark:bg-indigo-950/40',
           badgeTextAr: 'توثيق واكتمال فحص',
           badgeTextEn: 'Inspection Verified',
-          badgeClass: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+          badgeClass: 'bg-brand-500/20 text-indigo-300 border-brand-500/30',
         };
       case 'DISPUTE_RAISED':
       case 'WEIGHT_DISCREPANCY':
@@ -104,11 +104,11 @@ export const Alerts: React.FC<AlertsProps> = ({ locale, onNavigateAction }) => {
       default:
         return {
           icon: <Radio className="w-5 h-5 text-sky-400" />,
-          accentBorder: 'border-sky-500/40',
-          accentBg: 'bg-sky-500/10 dark:bg-sky-950/40',
+          accentBorder: 'border-brand-500/40',
+          accentBg: 'bg-brand-500/10 dark:bg-sky-950/40',
           badgeTextAr: 'تحديث مباشر',
           badgeTextEn: 'Live Status Update',
-          badgeClass: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+          badgeClass: 'bg-brand-500/20 text-sky-300 border-brand-500/30',
         };
     }
   };

@@ -42,7 +42,7 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
         {!isEditing && (
           <button
             onClick={() => setIsEditing(true)}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-colors"
+            className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl text-sm transition-colors"
           >
             {isAr ? 'تعديل البيانات' : 'Edit Profile'}
           </button>
@@ -55,7 +55,7 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
           {/* Profile Photo */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col items-center text-center">
             <div className="relative group mb-4">
-              <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-indigo-100 dark:border-indigo-900/50">
+              <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-brand-100 dark:border-brand-800/50">
                 <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               </div>
               {isEditing && (
@@ -81,7 +81,7 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
           {/* ID Document */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
             <h4 className="font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-indigo-500" />
+              <FileText className="w-5 h-5 text-brand-500" />
               {isAr ? 'صورة الهوية الوطنية' : 'National ID Photo'}
             </h4>
             
@@ -119,7 +119,7 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
             {/* Personal Info */}
             <div className="space-y-4">
               <h4 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                <UserIcon className="w-5 h-5 text-indigo-500" />
+                <UserIcon className="w-5 h-5 text-brand-500" />
                 {isAr ? 'المعلومات الشخصية' : 'Personal Information'}
               </h4>
               
@@ -136,7 +136,7 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
                       disabled={true}
                       value={formData.fullName}
                       onChange={handleChange}
-                      className="w-full pl-10 rtl:pr-10 rtl:pl-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 disabled:opacity-70"
+                      className="w-full pl-10 rtl:pr-10 rtl:pl-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 disabled:opacity-70"
                     />
                   </div>
                 </div>
@@ -153,7 +153,7 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
                       disabled={!isEditing}
                       value={formData.nationalId}
                       onChange={handleChange}
-                      className="w-full pl-10 rtl:pr-10 rtl:pl-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 disabled:opacity-70"
+                      className="w-full pl-10 rtl:pr-10 rtl:pl-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 disabled:opacity-70"
                     />
                   </div>
                 </div>
@@ -170,7 +170,7 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
                       disabled={!isEditing}
                       value={formData.phone}
                       onChange={handleChange}
-                      className="w-full pl-10 rtl:pr-10 rtl:pl-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 disabled:opacity-70"
+                      className="w-full pl-10 rtl:pr-10 rtl:pl-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 disabled:opacity-70"
                     />
                   </div>
                 </div>
@@ -187,7 +187,7 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
                       disabled={!isEditing}
                       value={formData.email}
                       onChange={handleChange}
-                      className="w-full pl-10 rtl:pr-10 rtl:pl-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 disabled:opacity-70"
+                      className="w-full pl-10 rtl:pr-10 rtl:pl-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 disabled:opacity-70"
                     />
                   </div>
                 </div>
@@ -197,7 +197,7 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
             {/* Addresses */}
             <div className="space-y-4">
               <h4 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                <MapPin className="w-5 h-5 text-indigo-500" />
+                <MapPin className="w-5 h-5 text-brand-500" />
                 {isAr ? 'العناوين' : 'Addresses'}
               </h4>
               
@@ -216,7 +216,7 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
                       value={formData.address}
                       onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
                       rows={2}
-                      className="w-full pl-10 rtl:pr-10 rtl:pl-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 disabled:opacity-70 resize-none"
+                      className="w-full pl-10 rtl:pr-10 rtl:pl-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 disabled:opacity-70 resize-none"
                       placeholder={isAr ? 'أدخل عنوانك بالتفصيل...' : 'Enter your full address...'}
                     />
                   </div>
@@ -236,7 +236,7 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
                       value={formData.receiverAddress}
                       onChange={(e) => setFormData(prev => ({ ...prev, receiverAddress: e.target.value }))}
                       rows={2}
-                      className="w-full pl-10 rtl:pr-10 rtl:pl-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 disabled:opacity-70 resize-none"
+                      className="w-full pl-10 rtl:pr-10 rtl:pl-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-500 disabled:opacity-70 resize-none"
                       placeholder={isAr ? 'أدخل عنوان المستلم بالتفصيل...' : 'Enter receiver full address...'}
                     />
                   </div>
@@ -255,7 +255,7 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                  className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-brand-500 hover:bg-brand-500 transition-colors flex items-center gap-2 shadow-lg shadow-brand-500/20"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   {isAr ? 'حفظ التعديلات' : 'Save Changes'}

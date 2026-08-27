@@ -327,7 +327,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             <button
               onClick={() => setActiveTab('RATES_LOCK')}
               className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
-                activeTab === 'RATES_LOCK' ? 'bg-sky-600 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                activeTab === 'RATES_LOCK' ? 'bg-brand-500 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
               }`}
               title={!isSidebarOpen ? (isAr ? 'تثبيت أسعار الصرف' : 'Exchange Rate Locks') : undefined}
             >

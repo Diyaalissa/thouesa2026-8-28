@@ -21,6 +21,8 @@ export interface OrderItem {
   totalCost: number;
   countryOrigin?: string;
   notes?: string;
+  imageUrl?: string;
+  sizeVolume?: string;
 }
 
 export interface Employee {
@@ -291,6 +293,8 @@ export interface FinancialTransaction {
   walletId: string;
   userId: string;
   userName: string;
+  employeeId?: string; // The hub agent holding the local treasury
+  employeeName?: string;
   tripId?: string;
   shipmentId?: string;
   type: TransactionType;
