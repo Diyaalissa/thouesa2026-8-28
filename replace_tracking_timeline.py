@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import re
+
+content = """import React, { useState } from 'react';
 import { 
   Package, 
   Building2, 
@@ -177,3 +179,9 @@ export const TrackingTimeline: React.FC<TrackingTimelineProps> = ({
     </div>
   );
 };
+"""
+
+with open('src/components/tracking/TrackingTimeline.tsx', 'w') as f:
+    f.write(content)
+
+print("TrackingTimeline updated.")

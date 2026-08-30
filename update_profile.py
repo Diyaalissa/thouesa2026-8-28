@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import re
+
+content = """import React, { useState } from 'react';
 import { User } from '../../types';
 import { 
   Camera, MapPin, User as UserIcon, Phone, Mail, FileText, CheckCircle2, ShieldCheck, 
   MapPinned, QrCode, Award, Upload, CreditCard, Building, Bell, Globe, Lock, 
-  Fingerprint, Trash2, HelpCircle, MessageCircle, AlertTriangle, ShieldAlert, FileWarning, ExternalLink,
+  Fingerprint, Trash2, MessageCircle, AlertTriangle, ShieldAlert, FileWarning, ExternalLink,
   Plus, Edit2, X, AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -36,7 +38,7 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
 
   const handleDeleteAccount = () => {
     const confirmText = isAr ? 'هل أنت متأكد من رغبتك في حذف الحساب؟ سيتم الاحتفاظ بالبيانات المالية للقانون.' : 'Are you sure you want to delete your account? Financial data will be retained for legal purposes.';
-    if (window.confirm(confirmText)) {
+    if (confirm(confirmText)) {
       alert(isAr ? 'تم إرسال طلب الحذف.' : 'Deletion request sent.');
     }
   };
@@ -368,3 +370,9 @@ export function UserProfile({ currentUser, locale, isAr }: UserProfileProps) {
     </div>
   );
 }
+"""
+
+with open('src/components/profile/UserProfile.tsx', 'w') as f:
+    f.write(content)
+
+print("Updated UserProfile.tsx")

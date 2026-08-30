@@ -38,7 +38,7 @@ import { Plus,  Trash2, ClipboardPaste,
   BadgePercent, User as UserIcon,
   Percent,
   ShieldAlert, Wallet, Sparkles,
-} from 'lucide-react';
+Globe, Receipt, Paperclip, } from 'lucide-react';
 import { EscrowWallet, Hub, ItemCategory, ItemCondition, Locale, OrderItem, ServiceType, Shipment, User } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
 import { WaybillModal } from '../common/WaybillModal';
@@ -104,9 +104,10 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
     'OVERVIEW' | 'MY_SHIPMENTS' | 'SEND_PARCEL' | 'INTERNATIONAL_BUY' | 'SPECIFIC_COUNTRY_BUY' | 'DISPUTES' | 'PROFILE' | 'WALLET'
   >('OVERVIEW');
 
-  const [selectedServiceFilter, setSelectedServiceFilter] = useState<ServiceType | 'ALL'>('ALL');
-  const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(shipments[0] || null);
+  const [shipmentStatusTab, setShipmentStatusTab] = useState<'ACTIVE' | 'COMPLETED' | 'CANCELLED'>('ACTIVE');
+  const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
   const [waybillModalShipment, setWaybillModalShipment] = useState<Shipment | null>(null);
+  const [customsReceiptUrl, setCustomsReceiptUrl] = useState<string | null>(null);
   const [orderSuccessModalOpen, setOrderSuccessModalOpen] = useState(false);
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [complianceModalOpen, setComplianceModalOpen] = useState(false);
@@ -253,7 +254,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
   // Filter sender's shipments
   const senderShipments = shipments
     .filter((s) => s.senderId === currentUser.id || s.recipientPhone === currentUser.phone)
-    .filter((s) => selectedServiceFilter === 'ALL' || (s.serviceType || 'SEND_PARCEL') === selectedServiceFilter);
+    ;
 
   // Submit Handler for Option 1: Send Personal Parcel
   const handleSendParcelSubmit = async (e: React.FormEvent) => {
@@ -648,7 +649,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
           
       
       {activeTab === 'WALLET' && (
-        <WalletDashboard currentUser={currentUser} wallet={wallet} locale={locale} />
+        <WalletDashboard currentUser={currentUser} wallet={wallet} locale={locale} shipments={senderShipments} />
       )}
 
       {activeTab === 'PROFILE' && (
@@ -2155,327 +2156,239 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
       {/* 5. TAB: RECEIVED ORDERS & ACTIVE SHIPMENTS WITH ITEM DETAILS, QUANTITIES & PRICES */}
       {activeTab === 'MY_SHIPMENTS' && (
         <div className="space-y-6">
-          {/* Service Filters Bar */}
+          {/* Status Filters Bar (Active, Completed, Cancelled) */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
-            <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
-              <span className="text-slate-400 font-semibold me-2 hidden sm:inline">
-                {isAr ? 'تصفية حسب نوع الخدمة:' : 'Filter by Service:'}
-              </span>
+            <div className="flex items-center gap-1.5 overflow-x-auto text-xs w-full sm:w-auto">
               <button
-                onClick={() => setSelectedServiceFilter('ALL')}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer ${
-                  selectedServiceFilter === 'ALL'
-                    ? 'bg-brand-500 text-white'
+                onClick={() => setShipmentStatusTab('ACTIVE')}
+                className={`flex-1 sm:flex-none px-4 py-2 rounded-xl font-bold transition-colors cursor-pointer ${
+                  shipmentStatusTab === 'ACTIVE'
+                    ? 'bg-brand-500 text-white shadow-md'
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                {isAr ? 'جميع الطلبات' : 'All Orders'} ({shipments.length})
+                {isAr ? 'طلبات نشطة' : 'Active Orders'}
               </button>
               <button
-                onClick={() => setSelectedServiceFilter('SEND_PARCEL')}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer ${
-                  selectedServiceFilter === 'SEND_PARCEL'
-                    ? 'bg-brand-500 text-white'
+                onClick={() => setShipmentStatusTab('COMPLETED')}
+                className={`flex-1 sm:flex-none px-4 py-2 rounded-xl font-bold transition-colors cursor-pointer ${
+                  shipmentStatusTab === 'COMPLETED'
+                    ? 'bg-emerald-600 text-white shadow-md'
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                {isAr ? 'الطرود الشخصية' : 'Personal Parcels'}
+                {isAr ? 'طلبات مكتملة' : 'Completed'}
               </button>
               <button
-                onClick={() => setSelectedServiceFilter('INTERNATIONAL_BUY')}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer ${
-                  selectedServiceFilter === 'INTERNATIONAL_BUY'
-                    ? 'bg-brand-600 text-white'
+                onClick={() => setShipmentStatusTab('CANCELLED')}
+                className={`flex-1 sm:flex-none px-4 py-2 rounded-xl font-bold transition-colors cursor-pointer ${
+                  shipmentStatusTab === 'CANCELLED'
+                    ? 'bg-red-600 text-white shadow-md'
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                {isAr ? 'المتاجر العالمية' : 'Global Stores'}
-              </button>
-              <button
-                onClick={() => setSelectedServiceFilter('SPECIFIC_COUNTRY_BUY')}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer ${
-                  selectedServiceFilter === 'SPECIFIC_COUNTRY_BUY'
-                    ? 'bg-teal-600 text-white'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {isAr ? 'شراء من دولة محددة' : 'Country Sourced'}
+                {isAr ? 'طلبات ملغاة' : 'Cancelled'}
               </button>
             </div>
           </div>
 
-          {/* Orders Master-Detail View */}
+          {/* Master-Detail Responsive Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: Orders List */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-400">
-                <span>{isAr ? 'الطلبات المسجلة' : 'Recorded Orders'}</span>
-                <span>{senderShipments.length} {isAr ? 'طلب' : 'orders'}</span>
-              </div>
-
-              {senderShipments.length === 0 ? (
-                <div className="p-8 bg-slate-900 border border-slate-800 rounded-2xl text-center text-slate-400 text-xs">
-                  <Box className="w-8 h-8 mx-auto mb-2 opacity-40" />
+            {/* Left: Orders List (Hidden on mobile if order selected) */}
+            <div className={`space-y-3 ${selectedShipment ? 'hidden lg:block' : 'block'}`}>
+              {senderShipments.filter(s => {
+                if (shipmentStatusTab === 'ACTIVE') return !['DELIVERED', 'CANCELLED'].includes(s.currentStatus);
+                if (shipmentStatusTab === 'COMPLETED') return s.currentStatus === 'DELIVERED';
+                if (shipmentStatusTab === 'CANCELLED') return s.currentStatus === 'CANCELLED';
+                return true;
+              }).length === 0 ? (
+                <div className="p-8 bg-slate-900 border border-slate-800 rounded-3xl text-center text-slate-400 text-xs">
+                  <Box className="w-8 h-8 mx-auto mb-2 opacity-40 text-brand-300" />
                   <p>{isAr ? 'لا توجد طلبات في هذا التصنيف حالياً' : 'No orders found in this category'}</p>
                 </div>
               ) : (
-                senderShipments.map((s) => {
+                senderShipments.filter(s => {
+                  if (shipmentStatusTab === 'ACTIVE') return !['DELIVERED', 'CANCELLED'].includes(s.currentStatus);
+                  if (shipmentStatusTab === 'COMPLETED') return s.currentStatus === 'DELIVERED';
+                  if (shipmentStatusTab === 'CANCELLED') return s.currentStatus === 'CANCELLED';
+                  return true;
+                }).map((s) => {
                   const isSelected = selectedShipment?.id === s.id;
+                  
+                  // Payment Tag Logic
+                  const isFullyPaid = s.currentStatus === 'DELIVERED' || s.serviceType === 'SEND_PARCEL';
+                  const paymentTagClass = isFullyPaid 
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    : 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                  const paymentTagText = isFullyPaid 
+                    ? (isAr ? 'مكتمل الدفع' : 'Fully Paid')
+                    : (isAr ? 'بانتظار الدفع عند الاستلام' : 'Pending Payment on Delivery');
+
                   return (
                     <div
                       key={s.id}
                       onClick={() => setSelectedShipment(s)}
-                      className={`p-4 rounded-2xl border cursor-pointer transition-all ${
+                      className={`p-4 rounded-3xl border cursor-pointer transition-all duration-300 ${
                         isSelected
-                          ? 'bg-brand-950/60 border-brand-400 ring-2 ring-brand-400/20 shadow-lg'
-                          : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                          ? 'bg-brand-950/40 border-brand-500/50 shadow-xl shadow-brand-900/20 ring-1 ring-brand-500/20'
+                          : 'bg-slate-900 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50'
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-mono font-bold text-xs text-brand-300">{s.trackingNumber}</span>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-white">{s.trackingNumber}</span>
+                          <span className="text-[10px] text-slate-500">
+                            {new Date().toLocaleDateString(isAr ? 'ar-JO' : 'en-US', { day: 'numeric', month: 'short' })}
+                          </span>
+                        </div>
+                        {/* Service Type Icon/Badge */}
+                        <div className="flex items-center gap-1.5">
+                          {s.serviceType === 'INTERNATIONAL_BUY' && (
+                            <span className="px-2 py-0.5 rounded-lg bg-blue-500/20 text-blue-400 text-[10px] font-bold flex items-center gap-1">
+                              <Globe className="w-3 h-3" />
+                              {isAr ? 'شراء عالمي' : 'Global Buy'}
+                            </span>
+                          )}
+                          {s.serviceType === 'SPECIFIC_COUNTRY_BUY' && (
+                            <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-400 text-[10px] font-bold flex items-center gap-1">
+                              <Store className="w-3 h-3" />
+                              {isAr ? 'شراء محلي' : 'Local Buy'}
+                            </span>
+                          )}
+                          {(!s.serviceType || s.serviceType === 'SEND_PARCEL') && (
+                            <span className="px-2 py-0.5 rounded-lg bg-brand-500/20 text-brand-400 text-[10px] font-bold flex items-center gap-1">
+                              <Package className="w-3 h-3" />
+                              {isAr ? 'إرسال طرد' : 'Send Parcel'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400 mb-3 bg-slate-950/50 p-2 rounded-xl border border-slate-800/50">
+                        <span className="truncate">{HUBS_DATA.find(h => h.id === s.originHubId)?.cityAr || 'الأردن'}</span>
+                        <ArrowRight className="w-3 h-3 text-brand-500 shrink-0 rtl:rotate-180" />
+                        <span className="truncate">{HUBS_DATA.find(h => h.id === s.destinationHubId)?.cityAr || 'الجزائر'}</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-800/80">
+                        <span className={`px-2 py-1 rounded-lg text-[10px] font-bold border ${paymentTagClass}`}>
+                          {paymentTagText}
+                        </span>
                         <StatusBadge status={s?.currentStatus} locale={locale} size="sm" />
                       </div>
-
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        {s.serviceType === 'INTERNATIONAL_BUY' && (
-                          <span className="px-2 py-0.5 rounded-md bg-brand-500/20 text-brand-400 border border-brand-500/30 text-[10px] font-bold">
-                            {isAr ? 'متجر عالمي' : 'Global Store'}
-                          </span>
-                        )}
-                        {s.serviceType === 'SPECIFIC_COUNTRY_BUY' && (
-                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
-                            {isAr ? 'شراء محلي' : 'Country Buy'}
-                          </span>
-                        )}
-                        {(!s.serviceType || s.serviceType === 'SEND_PARCEL') && (
-                          <span className="px-2 py-0.5 rounded-md bg-brand-400/20 text-brand-300 border border-brand-400/30 text-[10px] font-bold">
-                            {isAr ? 'طرد شخصي' : 'Parcel'}
-                          </span>
-                        )}
-                      </div>
-
-                      <p className="text-xs font-semibold text-white truncate mb-2">{s.itemDescription}</p>
-
-                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800">
-                        <span>
-                          {s.orderItems && s.orderItems.length > 0
-                            ? `${s.orderItems.length} ${isAr ? 'أصناف' : 'items'}`
-                            : `${s.actualWeightKg || s.estimatedWeightKg} kg`}
-                        </span>
-                        <span className="font-black text-emerald-400">
-                          {formatCurrency(s.declaredValue || s.shippingCost, s.currency)}
-                        </span>
-                      </div>
-
-                      {s?.currentStatus === 'WEIGHT_DISCREPANCY_PENDING' && (
-                        <div className="mt-2 p-2 bg-amber-500/15 border border-amber-500/30 text-amber-300 rounded-xl text-[10px] font-bold flex items-center gap-1.5">
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                          <span>{isAr ? 'مطلوب الموافقة على فرق الوزن' : 'Weight difference approval needed'}</span>
-                        </div>
-                      )}
                     </div>
                   );
                 })
               )}
             </div>
 
-            {/* Right: Selected Order Detailed Information, Quantities & Prices */}
-            <div className="lg:col-span-2 space-y-4">
+            {/* Right: Selected Order Detail (Hidden on mobile if NO order selected) */}
+            <div className={`lg:col-span-2 space-y-4 ${selectedShipment ? 'block' : 'hidden lg:block'}`}>
               {selectedShipment ? (
-                <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 text-white shadow-xl space-y-6">
+                <div className="bg-slate-900 rounded-3xl p-4 sm:p-6 border border-slate-800 text-white shadow-2xl relative overflow-hidden">
+                  {/* Subtle Background Accent */}
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 blur-[100px] rounded-full pointer-events-none" />
+                  
+                  {/* Mobile Back Button */}
+                  <div className="lg:hidden mb-4">
+                    <button 
+                      onClick={() => setSelectedShipment(null)}
+                      className="flex items-center gap-2 text-slate-400 hover:text-white text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      <ArrowLeft className="w-4 h-4 rtl:rotate-180" />
+                      {isAr ? 'العودة للقائمة' : 'Back to List'}
+                    </button>
+                  </div>
+
                   {/* Order Top Banner */}
-                  <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                  <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-800/80 relative z-10">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-black font-mono text-white">{selectedShipment.trackingNumber}</h3>
+                      <div className="flex items-center gap-3 mb-1">
+                        <h3 className="text-xl font-black font-mono text-white tracking-tight">{selectedShipment.trackingNumber}</h3>
                         <StatusBadge status={selectedShipment.currentStatus} locale={locale} size="sm" />
                       </div>
-                      <p className="text-xs text-slate-400 mt-1">
-                        {isAr ? 'المستلم:' : 'Recipient:'} <strong className="text-slate-200">{selectedShipment.recipientName}</strong> ({selectedShipment.recipientPhone})
+                      <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                        <UserIcon className="w-3.5 h-3.5" />
+                        {isAr ? 'المستلم:' : 'Recipient:'} <strong className="text-slate-200">{selectedShipment.recipientName}</strong>
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setWaybillModalShipment(selectedShipment)}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition-colors cursor-pointer"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-brand-300" />
-                        <span>{isAr ? 'عرض البوليصة' : 'Waybill'}</span>
-                      </button>
-                      <button
                         onClick={() => setChatModalOpen(true)}
-                        className="flex items-center gap-1.5 px-3.5 py-2 bg-brand-500 hover:bg-brand-400 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                        className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer border border-slate-700"
                       >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        <span>{isAr ? 'محادثة الفرع' : 'Chat Hub'}</span>
+                        <MessageSquare className="w-4 h-4 text-brand-400" />
+                        <span>{isAr ? 'محادثة الدعم' : 'Support Chat'}</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* Active Dispute Warning Banner */}
-                  {selectedShipment.currentStatus === 'DISPUTED' && (
-                    <div className="p-4 bg-red-950/60 border border-red-500/50 text-red-200 rounded-2xl text-xs space-y-2 animate-pulse">
-                      <div className="flex items-center justify-between font-bold text-red-300">
-                        <span className="flex items-center gap-2 text-sm">
-                          <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
-                          <span>{isAr ? 'شحنة متنازع عليها — الضمان المالي مجمد حالياً' : 'Active Dispute — Escrow Frozen'}</span>
-                        </span>
-                        <span className="px-2.5 py-0.5 bg-red-500/20 text-red-300 border border-red-500/40 rounded-full text-[10px] font-bold">
-                          {isAr ? 'قيد التحكيم المركزي' : 'Under Arbitration'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
-                        {isAr
-                          ? 'تم تسجيل شكوى رسمية بشأن هذه الشحنة وتجميد مستحقات المسافر في حساب الضمان المشفر (Escrow). يقوم فريق التحكيم المركزي بمراجعة الأدلة وصور المعاينة لحل النزاع أو استرداد الأموال.'
-                          : 'A dispute claim has been filed for this shipment. The traveler payout is safely frozen in escrow. The admin arbitration team is currently investigating.'}
-                      </p>
-                    </div>
-                  )}
+                  {/* Visual Tracking Timeline (Vertical) */}
+                  <div className="py-6 border-b border-slate-800/80 relative z-10">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-6 flex items-center gap-2">
+                      <ListOrdered className="w-4 h-4 text-brand-500" />
+                      {isAr ? 'الخط الزمني للشحنة' : 'Shipment Timeline'}
+                    </h4>
+                    <TrackingTimeline 
+                      shipment={selectedShipment} 
+                      locale={locale} 
+                      onOpenWaybill={(s) => setWaybillModalShipment(s)} 
+                    />
+                  </div>
 
-                  {/* Visual Tracking Timeline (DHL/Aramex Stepper) */}
-                  <TrackingTimeline
-                    shipment={selectedShipment}
-                    locale={locale}
-                    onOpenWaybill={(s) => setWaybillModalShipment(s)}
-                  />
-
-                  {/* ITEM DETAILS, QUANTITIES, AND PRICES TABLE */}
-                  <div className="space-y-3">
+                  {/* Financial Transparency & Customs Section */}
+                  <div className="pt-6 relative z-10 space-y-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                        <Tag className="w-3.5 h-3.5 text-brand-300" />
-                        <span>{isAr ? 'تفاصيل المنتجات والكميات والأسعار المسجلة:' : 'Order Items, Quantities & Prices Breakdown:'}</span>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                        <Receipt className="w-4 h-4 text-emerald-500" />
+                        {isAr ? 'الفاتورة والشفافية المالية' : 'Financial Transparency'}
                       </h4>
                     </div>
 
-                    {selectedShipment.orderItems && selectedShipment.orderItems.length > 0 ? (
-                      <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/60">
-                        <table className="w-full text-xs text-start">
-                          <thead className="bg-slate-800/80 text-slate-400 text-[11px] font-bold border-b border-slate-800">
-                            <tr>
-                              <th className="p-3 text-start">{isAr ? 'المنتج / الصنف' : 'Item Name'}</th>
-                              <th className="p-3 text-center">{isAr ? 'الكمية' : 'Quantity'}</th>
-                              <th className="p-3 text-end">{isAr ? 'سعر الوحدة' : 'Unit Price'}</th>
-                              <th className="p-3 text-end">{isAr ? 'الإجمالي' : 'Total Price'}</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-800/60 text-slate-200">
-                            {selectedShipment.orderItems.map((item, idx) => (
-                              <tr key={item.id || idx} className="hover:bg-slate-800/30">
-                                <td className="p-3">
-                                  <div className="font-bold text-white">{item.name}</div>
-                                  {item.specsOrVariants && (
-                                    <div className="text-[11px] text-slate-400">{item.specsOrVariants}</div>
-                                  )}
-                                  {item.storeUrl && (
-                                    <a
-                                      href={item.storeUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-[10px] text-brand-300 hover:underline flex items-center gap-1 mt-0.5"
-                                    >
-                                      <span>{isAr ? 'رابط المتجر' : 'Store Link'}</span>
-                                      <ExternalLink className="w-2.5 h-2.5" />
-                                    </a>
-                                  )}
-                                </td>
-                                <td className="p-3 text-center font-bold text-white">{item.quantity}</td>
-                                <td className="p-3 text-end font-semibold text-slate-300">
-                                  {formatCurrency(item.unitPrice, selectedShipment.currency || 'USD')}
-                                </td>
-                                <td className="p-3 text-end font-black text-emerald-400">
-                                  {formatCurrency(item.totalCost, selectedShipment.currency || 'USD')}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot className="bg-slate-900 border-t border-slate-800 font-bold text-xs">
-                            <tr>
-                              <td colSpan={3} className="p-3 text-end text-slate-300">
-                                {isAr ? 'إجمالي قيمة المشتريات المصرح بها (Escrow):' : 'Total Items Declared Value:'}
-                              </td>
-                              <td className="p-3 text-end text-emerald-400 font-black text-sm">
-                                {formatCurrency(selectedShipment.declaredValue, selectedShipment.currency || 'USD')}
-                              </td>
-                            </tr>
-                            <tr>
-                              <td colSpan={3} className="p-3 text-end text-slate-300">
-                                {isAr ? 'أجرة الشحن والمناولة والفحص بالفرع:' : 'Shipping, Handling & Inspection Fee:'}
-                              </td>
-                              <td className="p-3 text-end text-brand-300 font-black text-sm">
-                                {formatCurrency(selectedShipment.shippingCost, selectedShipment.currency || 'USD')}
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
+                    <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3 text-xs">
+                      {/* Base cost / Deposit */}
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>{isAr ? 'قيمة المنتجات (عربون مدفوع)' : 'Items Value (Deposit Paid)'}</span>
+                        <span className="font-bold text-white">{formatCurrency(selectedShipment.declaredValue || 0, 'USD')}</span>
                       </div>
-                    ) : (
-                      <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl flex items-center justify-between text-xs">
-                        <div>
-                          <span className="text-slate-400 block">{isAr ? 'محتوى الطرد الشخصي:' : 'Parcel Description:'}</span>
-                          <span className="font-bold text-white">{selectedShipment.itemDescription}</span>
+                      
+                      {/* Shipping Cost */}
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>{isAr ? 'تكلفة الشحن (تقريبية)' : 'Shipping Cost (Est.)'}</span>
+                        <span className="font-bold text-white">{formatCurrency(selectedShipment.shippingCost || 15, 'USD')}</span>
+                      </div>
+
+                      {/* Customs Receipt dynamic row */}
+                      {selectedShipment.currentStatus === 'CUSTOMS_CLEARANCE' || selectedShipment.currentStatus === 'DELIVERED' || selectedShipment.currentStatus === 'READY_FOR_DELIVERY' ? (
+                        <div className="flex items-center justify-between text-amber-200 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
+                          <div className="flex items-center gap-2">
+                            <span>{isAr ? 'رسوم جمركية رسمية' : 'Official Customs Fees'}</span>
+                            <button 
+                              onClick={() => setCustomsReceiptUrl('https://images.unsplash.com/photo-1621844781423-f327702e861c?auto=format&fit=crop&q=80&w=400')}
+                              className="flex items-center gap-1 px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                            >
+                              <Paperclip className="w-3 h-3" />
+                              {isAr ? 'عرض الوصل' : 'View Receipt'}
+                            </button>
+                          </div>
+                          <span className="font-bold text-amber-400">{formatCurrency(25, 'USD')}</span>
                         </div>
-                        <div className="text-end">
-                          <span className="text-slate-400 block">{isAr ? 'القيمة المصرح بها:' : 'Declared Value:'}</span>
-                          <span className="font-bold text-emerald-400">${selectedShipment.declaredValue} USD</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                      ) : null}
 
-                  
-
-                  {/* 4-Stage Visual Custody & Security Tracking */}
-                  <div className="space-y-3 pt-2">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                      {isAr ? 'سلسلة العهدة والأمان المباشرة:' : 'Custody & Security Tracking:'}
-                    </h4>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-3 text-xs">
-                      <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
-                        <span className="text-slate-500 block text-[11px] mb-1">{isAr ? 'الختم الأمني المشفر' : 'Tamper-Evident Seal ID'}</span>
-                        <span className="font-mono font-bold text-amber-400">
-                          {selectedShipment.securitySealId || (isAr ? 'بانتظار الفحص والتغليف بالفرع' : 'Pending Hub Intake')}
-                        </span>
-                      </div>
-
-                      <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
-                        <span className="text-slate-500 block text-[11px] mb-1">{isAr ? 'المسافر المعتمد المعين' : 'Assigned Traveler'}</span>
-                        <span className="font-bold text-brand-300">
-                          {selectedShipment.assignedTravelerName ? (
-                            `${selectedShipment.assignedTravelerName} (${selectedShipment.airline || 'رحلة جوية'})`
-                          ) : (
-                            <span className="text-slate-500">{isAr ? 'بانتظار ربط المانيفست' : 'Pending Manifest'}</span>
-                          )}
+                      <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-sm">
+                        <span className="font-bold text-slate-200">{isAr ? 'المبلغ المتبقي عند الاستلام' : 'Remaining on Delivery'}</span>
+                        <span className="font-black text-brand-400 text-lg">
+                          {formatCurrency((selectedShipment.shippingCost || 15) + (['CUSTOMS_CLEARANCE', 'DELIVERED', 'READY_FOR_DELIVERY'].includes(selectedShipment.currentStatus) ? 25 : 0), 'USD')}
                         </span>
                       </div>
                     </div>
                   </div>
-
-                  {/* Actions */}
-                  <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-800">
-                    {['PENDING', 'PENDING_REVIEW'].includes(selectedShipment.currentStatus) && (
-                      <button
-                        onClick={async () => {
-                            if (window.confirm(isAr ? 'هل أنت متأكد من إلغاء الطلب؟ سيتم استرداد المبلغ إلى المحفظة بشكل تلقائي.' : 'Are you sure you want to cancel? Refund will be issued to your wallet automatically.')) {
-                                const success = await onCancelShipment(selectedShipment.id);
-                                if (success) {
-                                  alert(isAr ? 'تم الإلغاء واسترداد المبلغ للمحفظة بنجاح.' : 'Order cancelled and amount refunded to wallet successfully.');
-                                }
-                            }
-                        }}
-                        className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold transition-colors"
-                      >
-                        {isAr ? 'إلغاء الطلب واسترداد الرصيد' : 'Cancel Order (Refund to Wallet)'}
-                      </button>
-                    )}
-                  </div>
                 </div>
               ) : (
-                <div className="bg-slate-900 rounded-3xl p-12 border border-slate-800 text-center text-slate-500">
-                  <Box className="w-12 h-12 mx-auto mb-3 opacity-30 text-brand-300" />
-                  <p className="text-xs">{isAr ? 'اختر شحنة من القائمة لعرض تفاصيلها وأسعارها' : 'Select an order to view full details'}</p>
+                <div className="hidden lg:flex flex-col items-center justify-center h-full min-h-[400px] bg-slate-900/50 border border-slate-800/50 rounded-3xl text-slate-500 space-y-4">
+                  <Box className="w-12 h-12 opacity-20" />
+                  <p className="text-sm font-medium">{isAr ? 'اختر طلباً لعرض التفاصيل' : 'Select an order to view details'}</p>
                 </div>
               )}
             </div>
@@ -2490,6 +2403,65 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
         shipment={waybillModalShipment}
         locale={locale}
       />
+
+
+      {/* Customs Receipt Modal (Bottom Sheet style on Mobile) */}
+      <AnimatePresence>
+        {customsReceiptUrl && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+              onClick={() => setCustomsReceiptUrl(null)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="relative w-full sm:w-[500px] bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-800 bg-slate-900/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                    <Receipt className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">{isAr ? 'الوصل الجمركي الرسمي' : 'Official Customs Receipt'}</h3>
+                    <p className="text-[11px] text-slate-400">{isAr ? 'تم سداد الرسوم من قبل مدير المحطة' : 'Fees paid by Hub Admin'}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setCustomsReceiptUrl(null)}
+                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-4 sm:p-6 overflow-y-auto">
+                <div className="aspect-[3/4] sm:aspect-auto sm:h-96 w-full bg-slate-800 rounded-2xl overflow-hidden border border-slate-700 relative">
+                  <img 
+                    src={customsReceiptUrl} 
+                    alt="Customs Receipt" 
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent pointer-events-none" />
+                  <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                    <span className="text-white font-mono font-bold text-xs bg-slate-950/50 px-3 py-1 rounded-lg backdrop-blur-md border border-slate-700/50">
+                      ID: CUS-{Math.floor(1000 + Math.random() * 9000)}
+                    </span>
+                    <span className="text-brand-300 font-bold text-xs bg-brand-950/50 px-3 py-1 rounded-lg backdrop-blur-md border border-brand-700/50">
+                      {new Date().toLocaleDateString(isAr ? 'ar-JO' : 'en-US')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Hub Agent Chat Modal */}
       <AgentChatModal
