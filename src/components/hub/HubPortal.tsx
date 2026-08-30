@@ -294,7 +294,7 @@ export const HubPortal: React.FC<HubPortalProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50" dir={isAr ? 'rtl' : 'ltr'}>
+    <div className="flex-1 flex flex-col min-h-0 h-full bg-slate-50" dir={isAr ? 'rtl' : 'ltr'}>
       {/* 1. UNIFIED STAFF PROFILE HEADER */}
       <header className="shrink-0 flex items-center justify-between px-6 py-4 bg-slate-900 text-white shadow-md z-10 relative">
         <div className="flex items-center gap-4">

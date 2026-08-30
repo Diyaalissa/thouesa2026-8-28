@@ -75,25 +75,46 @@ input[type="number"],
   background: rgba(148, 163, 184, 0.5);
 }
 
-.dark .bg-white { background-color: #1e293b !important; color: #f1f5f9 !important; border-color: #334155 !important; }
-.dark .text-slate-900 { color: #f1f5f9 !important; }
-.dark .text-slate-800 { color: #e2e8f0 !important; }
-.dark .bg-slate-50 { background-color: #0f172a !important; color: #cbd5e1 !important; border-color: #334155 !important; }
-.dark .border-slate-200 { border-color: #334155 !important; }
-.dark .text-slate-500 { color: #94a3b8 !important; }
-.dark .text-slate-600 { color: #cbd5e1 !important; }
-.dark .text-slate-700 { color: #f1f5f9 !important; }
-.dark .bg-slate-100 { background-color: #1e293b !important; border-color: #334155 !important; }
-.dark .bg-slate-200 { background-color: #334155 !important; }
+/* Balanced Dark Mode Overrides for Hardcoded Light Classes */
+.dark body { background-color: #0f172a; color: #f8fafc; }
 
-/* Dark mode overrides for hardcoded light classes */
-.dark .bg-white { background-color: #1e293b !important; color: #f1f5f9 !important; border-color: #334155 !important; }
-.dark .text-slate-900 { color: #f1f5f9 !important; }
-.dark .text-slate-800 { color: #e2e8f0 !important; }
-.dark .bg-slate-50 { background-color: #0f172a !important; color: #cbd5e1 !important; border-color: #334155 !important; }
-.dark .border-slate-200 { border-color: #334155 !important; }
-.dark .text-slate-500 { color: #94a3b8 !important; }
-.dark .text-slate-600 { color: #cbd5e1 !important; }
-.dark .text-slate-700 { color: #f1f5f9 !important; }
+/* Backgrounds */
+.dark .bg-white { background-color: #1e293b !important; color: #f8fafc !important; border-color: #334155 !important; }
+.dark .bg-slate-50 { background-color: #0f172a !important; color: #e2e8f0 !important; border-color: #1e293b !important; }
 .dark .bg-slate-100 { background-color: #1e293b !important; border-color: #334155 !important; }
-.dark .bg-slate-200 { background-color: #334155 !important; }
+.dark .bg-slate-200 { background-color: #334155 !important; border-color: #475569 !important; }
+.dark .bg-slate-300 { background-color: #475569 !important; }
+
+/* Text Hierarchy */
+.dark .text-slate-900 { color: #f8fafc !important; }
+.dark .text-slate-800 { color: #f1f5f9 !important; }
+.dark .text-slate-700 { color: #e2e8f0 !important; }
+.dark .text-slate-600 { color: #cbd5e1 !important; }
+.dark .text-slate-500 { color: #94a3b8 !important; }
+.dark .text-slate-400 { color: #64748b !important; }
+
+/* Borders */
+.dark .border-slate-100 { border-color: #1e293b !important; }
+.dark .border-slate-200 { border-color: #334155 !important; }
+.dark .border-slate-300 { border-color: #475569 !important; }
+.dark .border-slate-400 { border-color: #64748b !important; }
+
+/* Ensure Inputs remain readable */
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark textarea,
+.dark select {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Ensure focus states use the primary brand accent (brand-500) where appropriate */
+.dark .focus\:ring-slate-500:focus,
+.dark .focus\:ring-slate-200:focus {
+  --tw-ring-color: var(--color-brand-500) !important;
+}

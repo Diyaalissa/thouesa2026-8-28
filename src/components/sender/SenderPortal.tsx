@@ -1,9 +1,12 @@
 import { UserProfile } from '../profile/UserProfile';
-import React, { useState, useEffect } from 'react';
+import { SenderOverview } from './SenderOverview';
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Menu,
   X,
   Box,
+  Package,
   PlusCircle,
   Clock,
   ShieldCheck,
@@ -11,13 +14,14 @@ import {
   AlertTriangle, Camera,
   FileText,
   MessageSquare,
-  ChevronRight,
+  ChevronRight, ChevronDown,
   ChevronLeft,
   CheckCircle2,
   AlertCircle,
   HelpCircle,
   ExternalLink,
   Upload,
+
   ArrowRight,
   ArrowLeft,
   Lock,
@@ -29,7 +33,7 @@ import {
   ListOrdered,
   Store,
   Layers,
-  MapPin,
+  MapPin, MapPinIcon, LayoutDashboard,
   FileCheck,
   BadgePercent, User as UserIcon,
   Percent,
@@ -39,6 +43,7 @@ import { EscrowWallet, Hub, ItemCategory, ItemCondition, Locale, OrderItem, Serv
 import { StatusBadge } from '../common/StatusBadge';
 import { WaybillModal } from '../common/WaybillModal';
 import { AgentChatModal } from '../common/AgentChatModal';
+import { WalletDashboard } from '../wallet/WalletDashboard';
 import { ComplianceModal } from '../legal/ComplianceModal';
 import { CreateDisputeModal } from '../common/CreateDisputeModal';
 import { TrackingTimeline } from '../tracking/TrackingTimeline';
@@ -53,6 +58,7 @@ interface SenderPortalProps {
   hubs?: Hub[];
   onRefreshShipments: () => void;
   onCreateShipment: (payload: any) => Promise<boolean>;
+  onCancelShipment: (shipmentId: string) => Promise<boolean>;
   onApproveWeightDiscrepancy: (shipmentId: string, action: 'APPROVE' | 'REJECT') => Promise<void>;
 }
 
@@ -64,30 +70,13 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
   hubs,
   onRefreshShipments,
   onCreateShipment,
+  onCancelShipment,
   onApproveWeightDiscrepancy,
 }) => {
   const isAr = locale === 'ar';
 
-  const handleDeposit = async () => {
-    if (depositAmount <= 0) return;
-    setIsDepositing(true);
-    try {
-      const res = await fetch('/api/wallets/deposit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id, employeeId: 'emp-amm-101', amount: depositAmount, currency: 'USD' })
-      });
-      if (res.ok) {
-        alert(isAr ? 'تم شحن المحفظة بنجاح!' : 'Wallet topped up successfully!');
-        // Refresh by reloading for now or calling a passed refresh method
-        window.location.reload();
-      }
-    } catch(err) {
-      console.error(err);
-    }
-    setIsDepositing(false);
-  };
-
+  
+  
   const ArrowIcon = isAr ? ArrowLeft : ArrowRight;
 
   const activeHubs = React.useMemo(
@@ -110,15 +99,15 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
   }, [activeHubs]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [depositAmount, setDepositAmount] = useState<number>(100);
-  const [isDepositing, setIsDepositing] = useState(false);
+  const [isCreateOrderMenuOpen, setIsCreateOrderMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    'MY_SHIPMENTS' | 'SEND_PARCEL' | 'INTERNATIONAL_BUY' | 'SPECIFIC_COUNTRY_BUY' | 'DISPUTES' | 'PROFILE' | 'WALLET'
-  >('MY_SHIPMENTS');
+    'OVERVIEW' | 'MY_SHIPMENTS' | 'SEND_PARCEL' | 'INTERNATIONAL_BUY' | 'SPECIFIC_COUNTRY_BUY' | 'DISPUTES' | 'PROFILE' | 'WALLET'
+  >('OVERVIEW');
 
   const [selectedServiceFilter, setSelectedServiceFilter] = useState<ServiceType | 'ALL'>('ALL');
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(shipments[0] || null);
   const [waybillModalShipment, setWaybillModalShipment] = useState<Shipment | null>(null);
+  const [orderSuccessModalOpen, setOrderSuccessModalOpen] = useState(false);
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [complianceModalOpen, setComplianceModalOpen] = useState(false);
   const [disputeModalOpen, setDisputeModalOpen] = useState(false);
@@ -151,7 +140,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
   const [complianceInitialTab, setComplianceInitialTab] = useState<'TERMS' | 'CUSTOMS' | 'PROHIBITED'>('CUSTOMS');
 
   // Payment Gateway selection state
-  const [selectedPaymentGateway, setSelectedPaymentGateway] = useState<'CLIQ_JOR' | 'EDAHABIA_DZA' | 'CIB_DZA' | 'ESCROW_WALLET' | 'STRIPE_CARD'>('CLIQ_JOR');
+  const [selectedPaymentGateway, setSelectedPaymentGateway] = useState<'CLIQ_JOR' | 'EDAHABIA_DZA' | 'CIB_DZA' | 'ESCROW_WALLET' | 'STRIPE_CARD' | 'CASH_AT_HUB'>('CLIQ_JOR');
 
   // Common Recipient State
   const [originHubId, setOriginHubId] = useState(activeHubs[0]?.id || 'hub-amm');
@@ -179,6 +168,8 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
   const [customsRateOverride, setCustomsRateOverride] = useState<number | undefined>(undefined);
   const [parcelPurpose, setParcelPurpose] = useState('استخدام شخصي / هدية عائلية');
   const [parcelDescription, setParcelDescription] = useState('جهاز لوحي وحافظة إلكترونية وملحقاتها');
+  const [parcelPhotoUrl, setParcelPhotoUrl] = useState('');
+  const [insuranceRequested, setInsuranceRequested] = useState(false);
   const [parcelDeclaredValue, setParcelDeclaredValue] = useState(400);
   const [parcelEstimatedWeightKg, setParcelEstimatedWeightKg] = useState(2.0);
   const [parcelLengthCm, setParcelLengthCm] = useState(25);
@@ -304,13 +295,14 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
     if (success) {
       setActiveTab('MY_SHIPMENTS');
       onRefreshShipments();
+      setOrderSuccessModalOpen(true);
     }
   };
 
   // Submit Handler for Option 2: International Stores
   const handleStoreBuySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const totalItemsCost = storeItems.reduce((sum, item) => sum + item.totalCost, 0);
+    const totalItemsCost = storeItems.reduce((sum, item) => sum + (item.totalCost || 0), 0);
 
     setIsSubmitting(true);
     const success = await onCreateShipment({
@@ -337,13 +329,14 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
     if (success) {
       setActiveTab('MY_SHIPMENTS');
       onRefreshShipments();
+      setOrderSuccessModalOpen(true);
     }
   };
 
   // Submit Handler for Option 3: Specific Country Buy
   const handleCountryBuySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const totalItemsCost = countryBuyItems.reduce((sum, item) => sum + item.totalCost, 0);
+    const totalItemsCost = countryBuyItems.reduce((sum, item) => sum + (item.totalCost || 0), 0);
 
     setIsSubmitting(true);
     const success = await onCreateShipment({
@@ -370,6 +363,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
     if (success) {
       setActiveTab('MY_SHIPMENTS');
       onRefreshShipments();
+      setOrderSuccessModalOpen(true);
     }
   };
 
@@ -438,65 +432,106 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50" dir={isAr ? 'rtl' : 'ltr'}>
-      {/* Sender Top Header */}
-      <header className="shrink-0 flex items-center justify-between px-6 py-4 bg-slate-900 text-white shadow-md z-10 relative">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white flex items-center justify-center transition-colors cursor-pointer border border-slate-700"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-          <div className="w-10 h-10 rounded-xl bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold border border-brand-500/30">
-            <Box className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-black tracking-wide">
-                {isAr ? 'بوابة العميل والمرسل' : 'Sender & Client Portal'}
-              </h2>
-              <span className="text-[10px] bg-brand-500/20 text-brand-300 font-bold px-2 py-0.5 rounded-md border border-brand-500/30 uppercase tracking-wider">
-                {isAr ? 'عميل' : 'Client'}
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              {isAr
-                ? 'مرحباً، ' + currentUser.fullName
-                : 'Welcome, ' + currentUser.fullName}
-            </p>
-          </div>
-        </div>
-      </header>
-
+    <div className="flex-1 flex flex-col min-h-0 h-full bg-slate-50" dir={isAr ? 'rtl' : 'ltr'}>
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar Navigation */}
         <aside
-          className={`shrink-0 flex flex-col bg-white border-${isAr ? 'l' : 'r'} border-slate-200 overflow-y-auto transition-all duration-300 z-20 ${
+          className={`hidden md:flex shrink-0 flex-col bg-white border-${isAr ? 'l' : 'r'} border-slate-200 overflow-y-auto transition-all duration-300 z-20 ${
             isSidebarOpen ? 'w-64' : 'w-20'
           }`}
         >
-          <div className="p-4 space-y-2 flex-1">
+          
+          <div className={`p-4 flex items-center border-b border-slate-100 ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
+            {isSidebarOpen && (
+              <span className="text-xs font-black text-slate-800 tracking-wider">
+                {isAr ? 'الخدمات' : 'SERVICES'}
+              </span>
+            )}
             <button
-              onClick={() => setActiveTab('PROFILE')}
-              className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
-                activeTab === 'PROFILE' ? 'bg-brand-500 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-              title={!isSidebarOpen ? (isAr ? 'الملف الشخصي' : 'Profile') : undefined}
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 flex items-center justify-center transition-colors"
             >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === 'PROFILE' ? 'bg-brand-600 text-white' : 'bg-brand-100 text-brand-600'}`}>
-                <UserIcon className="w-4 h-4" />
+              <Menu className="w-4 h-4" />
+            </button>
+          </div>
+<div className="p-4 space-y-2 flex-1">
+            <button
+              onClick={() => setActiveTab('OVERVIEW')}
+              className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
+                activeTab === 'OVERVIEW' ? 'bg-brand-500 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+              title={!isSidebarOpen ? (isAr ? 'نظرة عامة' : 'Overview') : undefined}
+            >
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === 'OVERVIEW' ? 'bg-brand-600 text-white' : 'bg-brand-100 text-brand-600'}`}>
+                <LayoutDashboard className="w-4 h-4" />
               </div>
               {isSidebarOpen && (
                 <div className="truncate">
-                  <div className="text-xs font-bold truncate">{isAr ? 'الملف الشخصي' : 'Profile'}</div>
-                  <div className={`text-[10px] truncate ${activeTab === 'PROFILE' ? 'text-brand-100' : 'text-slate-400'}`}>
-                    {isAr ? 'الإعدادات والهوية' : 'Settings & ID'}
+                  <div className="text-xs font-bold truncate">{isAr ? 'اللوحة الرئيسية' : 'Dashboard'}</div>
+                  <div className={`text-[10px] truncate ${activeTab === 'OVERVIEW' ? 'text-brand-100' : 'text-slate-400'}`}>
+                    {isAr ? 'نظرة عامة' : 'Overview'}
                   </div>
                 </div>
               )}
             </button>
-
+            <div>
+              <button
+                onClick={() => {
+                  if (!isSidebarOpen) setIsSidebarOpen(true);
+                  setIsCreateOrderMenuOpen(!isCreateOrderMenuOpen);
+                }}
+                className={`w-full flex items-center justify-between ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start text-slate-700 hover:bg-slate-50 hover:text-slate-900`}
+                title={!isSidebarOpen ? (isAr ? 'إنشاء طلب جديد' : 'Create New Order') : undefined}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-brand-100 text-brand-600">
+                    <PlusCircle className="w-4 h-4" />
+                  </div>
+                  {isSidebarOpen && (
+                    <div className="truncate">
+                      <div className="text-xs font-bold truncate">{isAr ? 'إنشاء طلب جديد' : 'Create New Order'}</div>
+                    </div>
+                  )}
+                </div>
+                {isSidebarOpen && (
+                  <div className="text-slate-400">
+                    {isCreateOrderMenuOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </div>
+                )}
+              </button>
+              
+              {isSidebarOpen && isCreateOrderMenuOpen && (
+                <div className="pl-11 pr-2 py-2 space-y-1 mt-1 border-l-2 border-brand-100 ml-5">
+                  <button
+                    onClick={() => setActiveTab('SEND_PARCEL')}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl transition-all cursor-pointer text-start ${
+                      activeTab === 'SEND_PARCEL' ? 'bg-brand-50 text-brand-600 font-bold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Box className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-xs truncate">{isAr ? 'إرسال طرد' : 'Send Parcel'}</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('INTERNATIONAL_BUY')}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl transition-all cursor-pointer text-start ${
+                      activeTab === 'INTERNATIONAL_BUY' ? 'bg-brand-50 text-brand-600 font-bold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Globe2 className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-xs truncate">{isAr ? 'شراء من متجر عالمي' : 'Global Store'}</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('SPECIFIC_COUNTRY_BUY')}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl transition-all cursor-pointer text-start ${
+                      activeTab === 'SPECIFIC_COUNTRY_BUY' ? 'bg-brand-50 text-brand-600 font-bold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-xs truncate">{isAr ? 'شراء محلي' : 'Local Buy'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setActiveTab('MY_SHIPMENTS')}
               className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
@@ -516,87 +551,6 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                 </div>
               )}
             </button>
-
-            <button
-              onClick={() => setActiveTab('SEND_PARCEL')}
-              className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
-                activeTab === 'SEND_PARCEL' ? 'bg-brand-600 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-              title={!isSidebarOpen ? (isAr ? 'إرسال طرد' : 'Send Parcel') : undefined}
-            >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === 'SEND_PARCEL' ? 'bg-brand-700 text-white' : 'bg-brand-100 text-brand-700'}`}>
-                <Box className="w-4 h-4" />
-              </div>
-              {isSidebarOpen && (
-                <div className="truncate">
-                  <div className="text-xs font-bold truncate">{isAr ? 'إرسال طرد' : 'Send Parcel'}</div>
-                  <div className={`text-[10px] truncate ${activeTab === 'SEND_PARCEL' ? 'text-brand-100' : 'text-slate-400'}`}>
-                    {isAr ? 'إرسال بين الفروع' : 'Send between hubs'}
-                  </div>
-                </div>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('INTERNATIONAL_BUY')}
-              className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
-                activeTab === 'INTERNATIONAL_BUY' ? 'bg-brand-600 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-              title={!isSidebarOpen ? (isAr ? 'شراء من متجر عالمي' : 'Global Store') : undefined}
-            >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === 'INTERNATIONAL_BUY' ? 'bg-brand-700 text-white' : 'bg-brand-100 text-brand-700'}`}>
-                <Globe2 className="w-4 h-4" />
-              </div>
-              {isSidebarOpen && (
-                <div className="truncate">
-                  <div className="text-xs font-bold truncate">{isAr ? 'شراء من متجر عالمي' : 'Global Store'}</div>
-                  <div className={`text-[10px] truncate ${activeTab === 'INTERNATIONAL_BUY' ? 'text-brand-100' : 'text-slate-400'}`}>
-                    {isAr ? 'أمازون وغيرها' : 'Amazon, eBay...'}
-                  </div>
-                </div>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('SPECIFIC_COUNTRY_BUY')}
-              className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
-                activeTab === 'SPECIFIC_COUNTRY_BUY' ? 'bg-brand-600 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-              title={!isSidebarOpen ? (isAr ? 'شراء من فرع معين' : 'Country Buy') : undefined}
-            >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === 'SPECIFIC_COUNTRY_BUY' ? 'bg-brand-700 text-white' : 'bg-brand-100 text-brand-700'}`}>
-                <ShoppingBag className="w-4 h-4" />
-              </div>
-              {isSidebarOpen && (
-                <div className="truncate">
-                  <div className="text-xs font-bold truncate">{isAr ? 'شراء محلي' : 'Local Buy'}</div>
-                  <div className={`text-[10px] truncate ${activeTab === 'SPECIFIC_COUNTRY_BUY' ? 'text-brand-100' : 'text-slate-400'}`}>
-                    {isAr ? 'أسواق الفروع' : 'Hub markets'}
-                  </div>
-                </div>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('DISPUTES')}
-              className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
-                activeTab === 'DISPUTES' ? 'bg-red-600 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-              title={!isSidebarOpen ? (isAr ? 'النزاعات والشكاوى' : 'Disputes') : undefined}
-            >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === 'DISPUTES' ? 'bg-red-700 text-white' : 'bg-red-100 text-red-700'}`}>
-                <ShieldAlert className="w-4 h-4" />
-              </div>
-              {isSidebarOpen && (
-                <div className="truncate">
-                  <div className="text-xs font-bold truncate">{isAr ? 'النزاعات والشكاوى' : 'Disputes'}</div>
-                  <div className={`text-[10px] truncate ${activeTab === 'DISPUTES' ? 'text-red-100' : 'text-slate-400'}`}>
-                    {isAr ? 'تقديم شكوى' : 'File a complaint'}
-                  </div>
-                </div>
-              )}
-            </button>
-
             <button
               onClick={() => setActiveTab('WALLET')}
               className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
@@ -616,103 +570,76 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                 </div>
               )}
             </button>
+            <button
+              onClick={() => setActiveTab('PROFILE')}
+              className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
+                activeTab === 'PROFILE' ? 'bg-brand-500 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+              title={!isSidebarOpen ? (isAr ? 'الملف الشخصي' : 'Profile') : undefined}
+            >
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === 'PROFILE' ? 'bg-brand-600 text-white' : 'bg-brand-100 text-brand-600'}`}>
+                <UserIcon className="w-4 h-4" />
+              </div>
+              {isSidebarOpen && (
+                <div className="truncate">
+                  <div className="text-xs font-bold truncate">{isAr ? 'الملف الشخصي' : 'Profile'}</div>
+                  <div className={`text-[10px] truncate ${activeTab === 'PROFILE' ? 'text-brand-100' : 'text-slate-400'}`}>
+                    {isAr ? 'الإعدادات والهوية' : 'Settings & ID'}
+                  </div>
+                </div>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('DISPUTES')}
+              className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
+                activeTab === 'DISPUTES' ? 'bg-red-600 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+              title={!isSidebarOpen ? (isAr ? 'النزاعات والشكاوى' : 'Disputes') : undefined}
+            >
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === 'DISPUTES' ? 'bg-red-700 text-white' : 'bg-red-100 text-red-700'}`}>
+                <ShieldAlert className="w-4 h-4" />
+              </div>
+              {isSidebarOpen && (
+                <div className="truncate">
+                  <div className="text-xs font-bold truncate">{isAr ? 'النزاعات والشكاوى' : 'Disputes'}</div>
+                  <div className={`text-[10px] truncate ${activeTab === 'DISPUTES' ? 'text-red-100' : 'text-slate-400'}`}>
+                    {isAr ? 'تقديم شكوى' : 'File a complaint'}
+                  </div>
+                </div>
+              )}
+            </button>
           </div>
         </aside>
 
         {/* Content Area */}
-        <main className="flex-1 min-w-0 overflow-y-auto bg-slate-50/50 p-6 space-y-6">
+        <main className="flex-1 min-w-0 overflow-y-auto bg-slate-50/50 p-4 md:p-6 pb-24 md:pb-6 space-y-6">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            {activeTab === 'OVERVIEW' && (
+              <SenderOverview 
+                currentUser={currentUser} 
+                walletBalance={wallet?.balance || 0}
+                activeShipmentsCount={(shipments || []).filter(s => s?.currentStatus !== 'DELIVERED' && s?.currentStatus !== 'CANCELLED').length}
+                onNavigate={(tab) => setActiveTab(tab as any)}
+                isAr={isAr}
+                shipments={shipments}
+              />
+            )}
+
           
           
       
       {activeTab === 'WALLET' && (
-        <div className="space-y-6">
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-white shadow-xl">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-12 h-12 rounded-xl bg-brand-500/20 text-indigo-400 border border-brand-500/30 flex items-center justify-center">
-                <Wallet className="w-6 h-6" />
-              </div>
-              <div>
-                <h2 className="text-xl font-black text-white">
-                  {isAr ? 'المحفظة المالية' : 'Financial Wallet'}
-                </h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  {isAr ? 'إدارة أرصدتك وإضافة أموال لشحن طرودك بسهولة' : 'Manage your balances and top up funds easily'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Wallet Overview Card */}
-            <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm space-y-6">
-              <div>
-                <span className="text-xs text-slate-500 font-bold block mb-2">{isAr ? 'الرصيد المتاح' : 'Available Balance'}</span>
-                <div className="text-4xl font-black text-brand-500">
-                  {wallet ? formatCurrency(wallet.balance, wallet.currency) : '$0.00'}
-                </div>
-              </div>
-
-              <div className="space-y-3 pt-4 border-t border-slate-100 text-xs font-medium">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">{isAr ? 'مبالغ محجوزة (قيد الشحن):' : 'Reserved (In Transit):'}</span>
-                  <span className="font-bold text-amber-500">
-                    {wallet ? formatCurrency(wallet.lockedEscrowDeposit, 'USD') : '$0.00'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Exchange Rates Info Card */}
-              <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl space-y-3 mt-4">
-                <h4 className="font-bold text-xs flex items-center gap-2 text-slate-700">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  {isAr ? 'أسعار الصرف المعتمدة (الإدارة)' : 'Official Exchange Rates'}
-                </h4>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-bold">1 USD</span>
-                    <span className="font-black text-slate-800">140 DZD</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-bold">1 USD</span>
-                    <span className="font-black text-slate-800">0.71 JOD</span>
-                  </div>
-                </div>
-                <p className="text-[10px] text-slate-400 leading-relaxed pt-2 border-t border-slate-200">
-                  {isAr ? 'يتم تحديد أسعار الصرف بمرونة من قبل الإدارة لتسهيل معاملاتك' : 'Rates flexibly configured by management to facilitate transactions.'}
-                </p>
-              </div>
-            </div>
-
-            {/* Top Up / History */}
-            <div className="lg:col-span-2 space-y-6">
-               <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm space-y-4">
-                  <h3 className="font-bold text-slate-800">{isAr ? 'إضافة رصيد (شحن المحفظة)' : 'Top Up Wallet'}</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 mb-1.5">{isAr ? 'المبلغ ($)' : 'Amount ($)'}</label>
-                      <input type="number" min="10" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 mb-1.5">{isAr ? 'طريقة الدفع' : 'Payment Method'}</label>
-                      <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm">
-                        <option>{isAr ? 'بطاقة بنكية (Stripe)' : 'Credit Card (Stripe)'}</option>
-                        <option>{isAr ? 'البطاقة الذهبية (الجزائر)' : 'Edahabia (Algeria)'}</option>
-                        <option>{isAr ? 'إي فواتيركم (الأردن)' : 'eFawateerCom (Jordan)'}</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="pt-2">
-                    <button onClick={handleDeposit} disabled={isDepositing} className="px-6 py-3 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-colors shadow-lg shadow-brand-500/20 w-full md:w-auto">
-                      {isDepositing ? '...' : (isAr ? 'متابعة الدفع' : 'Proceed to Payment')}
-                    </button>
-                  </div>
-               </div>
-            </div>
-          </div>
-        </div>
+        <WalletDashboard currentUser={currentUser} wallet={wallet} locale={locale} />
       )}
 
-{activeTab === 'PROFILE' && (
+      {activeTab === 'PROFILE' && (
         <UserProfile currentUser={currentUser} locale={locale} isAr={isAr} />
       )}
 
@@ -740,13 +667,13 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
               <div className="flex items-center justify-between text-xs font-bold text-slate-400">
                 <span>{isAr ? 'الشحنات المؤهلة' : 'Eligible Shipments'}</span>
               </div>
-              {senderShipments.filter(s => ['DELIVERED_TO_HUB', 'DELIVERED_TO_RECIPIENT', 'DISPUTED', 'IN_TRANSIT', 'WEIGHT_DISCREPANCY_PENDING', 'PENDING_PAYMENT'].includes(s.currentStatus)).length === 0 ? (
+              {senderShipments.filter(s => ['DELIVERED_TO_HUB', 'DELIVERED_TO_RECIPIENT', 'DISPUTED', 'IN_TRANSIT', 'WEIGHT_DISCREPANCY_PENDING', 'PENDING_PAYMENT'].includes(s?.currentStatus)).length === 0 ? (
                 <div className="p-8 bg-slate-900 border border-slate-800 rounded-2xl text-center text-slate-400 text-xs">
                   <ShieldCheck className="w-8 h-8 mx-auto mb-2 opacity-40" />
                   <p>{isAr ? 'لا توجد شحنات مؤهلة لفتح نزاع في الوقت الحالي' : 'No eligible shipments to dispute right now'}</p>
                 </div>
               ) : (
-                senderShipments.filter(s => ['DELIVERED_TO_HUB', 'DELIVERED_TO_RECIPIENT', 'DISPUTED', 'IN_TRANSIT', 'WEIGHT_DISCREPANCY_PENDING', 'PENDING_PAYMENT'].includes(s.currentStatus)).map(s => {
+                senderShipments.filter(s => ['DELIVERED_TO_HUB', 'DELIVERED_TO_RECIPIENT', 'DISPUTED', 'IN_TRANSIT', 'WEIGHT_DISCREPANCY_PENDING', 'PENDING_PAYMENT'].includes(s?.currentStatus)).map(s => {
                   const isSelected = selectedShipment?.id === s.id;
                   return (
                     <div
@@ -760,11 +687,11 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-mono font-bold text-xs text-slate-200">{s.trackingNumber}</span>
-                        <StatusBadge status={s.currentStatus} locale={locale} size="sm" />
+                        <StatusBadge status={s?.currentStatus} locale={locale} size="sm" />
                       </div>
                       <p className="text-xs font-semibold text-slate-400 truncate mb-2">{s.itemDescription}</p>
                       
-                      {s.currentStatus === 'DISPUTED' ? (
+                      {s?.currentStatus === 'DISPUTED' ? (
                         <div className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3" />
                           <span>{isAr ? 'يوجد نزاع مفتوح' : 'Open Dispute'}</span>
@@ -1005,6 +932,33 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
             </div>
           </div>
 
+          <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-xs font-bold text-brand-300 flex items-center gap-2">
+                <MapPinIcon className="w-4 h-4" />
+                {isAr ? 'دفتر العناوين المحفوظة' : 'Saved Address Book'}
+              </label>
+            </div>
+            <select
+              className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+              onChange={(e) => {
+                if (e.target.value === '1') {
+                  setRecipientName('Ahmad Al-Saeed');
+                  setRecipientPhone('+962790000000');
+                  setRecipientAddress('Amman, Mecca St, Building 12');
+                } else if (e.target.value === '2') {
+                  setRecipientName('Fatima Zahra');
+                  setRecipientPhone('+213550000000');
+                  setRecipientAddress('Algiers, Didouche Mourad St, Appt 5');
+                }
+              }}
+            >
+              <option value="">{isAr ? '-- اختر من العناوين المحفوظة (اختياري) --' : '-- Select saved address (Optional) --'}</option>
+              <option value="1">Ahmad Al-Saeed - Amman, JO</option>
+              <option value="2">Fatima Zahra - Algiers, DZ</option>
+            </select>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">{isAr ? 'اسم المستلم الثلاثي' : 'Recipient Name'}</label>
@@ -1232,6 +1186,31 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
             />
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">{isAr ? 'صورة للطرد (اختياري / رابط)' : 'Parcel Photo URL (Optional)'}</label>
+              <input
+                type="text"
+                placeholder="https://example.com/photo.jpg"
+                value={parcelPhotoUrl}
+                onChange={(e) => setParcelPhotoUrl(e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+              />
+            </div>
+            <div className="flex items-center gap-3 bg-slate-800/50 p-3 rounded-xl border border-slate-700">
+              <input
+                type="checkbox"
+                checked={insuranceRequested}
+                onChange={(e) => setInsuranceRequested(e.target.checked)}
+                className="w-5 h-5 text-brand-500 rounded-md cursor-pointer"
+                id="insuranceCheckbox"
+              />
+              <label htmlFor="insuranceCheckbox" className="text-xs font-semibold text-slate-300 cursor-pointer">
+                {isAr ? 'أرغب في تأمين الشحنة (رسوم إضافية)' : 'Request Insurance (Extra Fee)'}
+              </label>
+            </div>
+          </div>
+
           {/* Live Quote Breakdown Card */}
           <div className="p-4 bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl space-y-3">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
@@ -1329,6 +1308,17 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                 }`}
               >
                 <span>🛡️ محفظة الضمان</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedPaymentGateway('CASH_AT_HUB')}
+                className={`p-2.5 rounded-xl border text-center font-bold transition-all cursor-pointer ${
+                  selectedPaymentGateway === 'CASH_AT_HUB'
+                    ? 'bg-blue-600/30 border-blue-500 text-white ring-1 ring-blue-500'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'
+                }`}
+              >
+                <span>💵 {isAr ? 'نقداً في المستودع' : 'Cash at Hub'}</span>
               </button>
             </div>
           </div>
@@ -1533,7 +1523,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                   <div>
                     <label className="block text-[10px] text-slate-400 mb-1">{isAr ? 'الإجمالي ($)' : 'Total ($)'}</label>
                     <div className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-center font-black text-emerald-400">
-                      ${item.totalCost.toFixed(2)}
+                      ${(item.totalCost || 0).toFixed(2)}
                     </div>
                   </div>
                 </div>
@@ -1560,25 +1550,43 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                 </div>
 
                 <div>
-                  <input
-                    type="text"
+                  <textarea
+                    rows={4}
                     value={item.specsOrVariants || ''}
                     onChange={(e) => updateStoreItem(idx, 'specsOrVariants', e.target.value)}
-                    placeholder={isAr ? 'المقاس / اللون / الملاحظات الخاصة (مثال: لون أسود، مقاس 42)' : 'Size, Color, Specs'}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                    placeholder={isAr ? 'المقاس / اللون / الملاحظات الخاصة التفصيلية...' : 'Detailed Size, Color, Specs...'}
+                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white resize-y"
                   />
                 </div>
               </div>
             ))}
 
-            {/* Total Cost Banner */}
-            <div className="p-4 bg-brand-950/40 border border-brand-500/30 rounded-2xl flex items-center justify-between text-xs">
-              <span className="font-bold text-brand-200">
-                {isAr ? 'إجمالي قيمة المشتريات المصرح بها:' : 'Total Items Declared Cost:'}
-              </span>
-              <span className="text-base font-black text-emerald-400">
-                ${storeItems.reduce((sum, item) => sum + item.totalCost, 0).toFixed(2)} USD
-              </span>
+            {/* Pro-forma Invoice Breakdown */}
+            <div className="p-5 bg-brand-950/40 border border-brand-500/30 rounded-2xl flex flex-col gap-3 text-xs">
+              <h4 className="font-bold text-brand-300 mb-2 border-b border-brand-500/20 pb-2">
+                {isAr ? 'الفاتورة التقديرية (Pro-forma Invoice)' : 'Pro-forma Invoice Breakdown'}
+              </h4>
+              <div className="flex items-center justify-between text-slate-300">
+                <span>{isAr ? 'إجمالي قيمة المنتجات:' : 'Items Total Cost:'}</span>
+                <span className="font-semibold">${storeItems.reduce((sum, item) => sum + (item.totalCost || 0), 0).toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-300">
+                <span>{isAr ? 'عمولة التسوق (5%):' : 'Shopper Fee (5%):'}</span>
+                <span className="font-semibold">${(storeItems.reduce((sum, item) => sum + (item.totalCost || 0), 0) * 0.05).toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-300">
+                <span>{isAr ? 'رسوم الشحن التقديرية (مبدئي):' : 'Est. Shipping (Initial):'}</span>
+                <span className="font-semibold">$15.00</span>
+              </div>
+              <div className="flex items-center justify-between text-brand-200 pt-3 border-t border-brand-500/20">
+                <span className="font-bold">{isAr ? 'الإجمالي التقديري المطلوب:' : 'Total Estimated Required:'}</span>
+                <span className="text-base font-black text-emerald-400">
+                  ${(storeItems.reduce((sum, item) => sum + (item.totalCost || 0), 0) * 1.05 + 15).toFixed(2)} USD
+                </span>
+              </div>
+              <p className="text-[10px] text-brand-400/70 mt-1">
+                {isAr ? '*هذه التكلفة تقديرية وسيتم تأكيدها نهائياً بعد استلام طلبك.' : '*This is an estimated cost and will be finalized upon receipt of your order.'}
+              </p>
             </div>
           </div>
 
@@ -1713,7 +1721,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                   <div>
                     <label className="block text-[10px] text-slate-400 mb-1">{isAr ? 'الإجمالي ($)' : 'Total ($)'}</label>
                     <div className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-center font-black text-emerald-400">
-                      ${item.totalCost.toFixed(2)}
+                      ${(item.totalCost || 0).toFixed(2)}
                     </div>
                   </div>
                 </div>
@@ -1751,14 +1759,32 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
               </div>
             ))}
 
-            {/* Total Cost Banner */}
-            <div className="p-4 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl flex items-center justify-between text-xs">
-              <span className="font-bold text-emerald-200">
-                {isAr ? 'إجمالي قيمة المشتريات المحلية المقدرة:' : 'Total Estimated Local Sourcing Cost:'}
-              </span>
-              <span className="text-base font-black text-emerald-400">
-                ${countryBuyItems.reduce((sum, item) => sum + item.totalCost, 0).toFixed(2)} USD
-              </span>
+            {/* Pro-forma Invoice Breakdown */}
+            <div className="p-5 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl flex flex-col gap-3 text-xs">
+              <h4 className="font-bold text-emerald-300 mb-2 border-b border-emerald-500/20 pb-2">
+                {isAr ? 'الفاتورة التقديرية (Pro-forma Invoice)' : 'Pro-forma Invoice Breakdown'}
+              </h4>
+              <div className="flex items-center justify-between text-slate-300">
+                <span>{isAr ? 'إجمالي قيمة المنتجات المقدرة:' : 'Est. Items Total Cost:'}</span>
+                <span className="font-semibold">${countryBuyItems.reduce((sum, item) => sum + (item.totalCost || 0), 0).toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-300">
+                <span>{isAr ? 'عمولة التسوق (5%):' : 'Shopper Fee (5%):'}</span>
+                <span className="font-semibold">${(countryBuyItems.reduce((sum, item) => sum + (item.totalCost || 0), 0) * 0.05).toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-300">
+                <span>{isAr ? 'رسوم الشحن التقديرية (مبدئي):' : 'Est. Shipping (Initial):'}</span>
+                <span className="font-semibold">$15.00</span>
+              </div>
+              <div className="flex items-center justify-between text-emerald-200 pt-3 border-t border-emerald-500/20">
+                <span className="font-bold">{isAr ? 'الإجمالي التقديري المطلوب:' : 'Total Estimated Required:'}</span>
+                <span className="text-base font-black text-emerald-400">
+                  ${(countryBuyItems.reduce((sum, item) => sum + (item.totalCost || 0), 0) * 1.05 + 15).toFixed(2)} USD
+                </span>
+              </div>
+              <p className="text-[10px] text-emerald-400/70 mt-1">
+                {isAr ? '*هذه التكلفة تقديرية وسيتم تأكيدها نهائياً بعد استلام طلبك.' : '*This is an estimated cost and will be finalized upon receipt of your order.'}
+              </p>
             </div>
           </div>
 
@@ -1863,7 +1889,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-mono font-bold text-xs text-brand-300">{s.trackingNumber}</span>
-                        <StatusBadge status={s.currentStatus} locale={locale} size="sm" />
+                        <StatusBadge status={s?.currentStatus} locale={locale} size="sm" />
                       </div>
 
                       <div className="flex items-center gap-1.5 mb-1.5">
@@ -1897,7 +1923,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                         </span>
                       </div>
 
-                      {s.currentStatus === 'WEIGHT_DISCREPANCY_PENDING' && (
+                      {s?.currentStatus === 'WEIGHT_DISCREPANCY_PENDING' && (
                         <div className="mt-2 p-2 bg-amber-500/15 border border-amber-500/30 text-amber-300 rounded-xl text-[10px] font-bold flex items-center gap-1.5">
                           <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                           <span>{isAr ? 'مطلوب الموافقة على فرق الوزن' : 'Weight difference approval needed'}</span>
@@ -2082,6 +2108,25 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                       </div>
                     </div>
                   </div>
+
+                  {/* Actions */}
+                  <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-800">
+                    {['PENDING', 'PENDING_REVIEW'].includes(selectedShipment.currentStatus) && (
+                      <button
+                        onClick={async () => {
+                            if (window.confirm(isAr ? 'هل أنت متأكد من إلغاء الطلب؟ سيتم استرداد المبلغ إلى المحفظة بشكل تلقائي.' : 'Are you sure you want to cancel? Refund will be issued to your wallet automatically.')) {
+                                const success = await onCancelShipment(selectedShipment.id);
+                                if (success) {
+                                  alert(isAr ? 'تم الإلغاء واسترداد المبلغ للمحفظة بنجاح.' : 'Order cancelled and amount refunded to wallet successfully.');
+                                }
+                            }
+                        }}
+                        className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold transition-colors"
+                      >
+                        {isAr ? 'إلغاء الطلب واسترداد الرصيد' : 'Cancel Order (Refund to Wallet)'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="bg-slate-900 rounded-3xl p-12 border border-slate-800 text-center text-slate-500">
@@ -2132,8 +2177,82 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
           onRefreshShipments();
         }}
       />
-        </main>
+                  </motion.div>
+        </AnimatePresence>
+      </main>
       </div>
-    </div>
+
+      {/* Order Success Confirmation & AWB Generation */}
+      {orderSuccessModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-brand-500/30 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-500 to-emerald-500"></div>
+            <div className="w-20 h-20 bg-brand-500/20 text-brand-400 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-brand-500/10">
+              <FileCheck className="w-10 h-10" />
+            </div>
+            <h2 className="text-2xl font-black text-white mb-2">
+              {isAr ? 'تم تأكيد طلبك بنجاح!' : 'Order Confirmed Successfully!'}
+            </h2>
+            <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+              {isAr 
+                ? 'لقد تم تسجيل شحنتك وإصدار بوليصة الشحن المبدئية (AWB). يمكنك متابعة التحديثات من لوحة التحكم.' 
+                : 'Your shipment has been recorded and an initial Air Waybill (AWB) has been generated. Track updates from your dashboard.'}
+            </p>
+            
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-8">
+              <div className="text-xs text-slate-500 uppercase tracking-widest mb-1">{isAr ? 'رقم التتبع' : 'Tracking Number'}</div>
+              <div className="text-xl font-mono font-black text-brand-300">
+                TH-AWB-{Math.floor(100000 + Math.random() * 900000)}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setOrderSuccessModalOpen(false)}
+                className="flex-1 py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-colors"
+              >
+                {isAr ? 'المتابعة للطلبات' : 'Go to Orders'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    
+      {/* Mobile Bottom Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex items-center justify-between z-40 pb-safe">
+        <motion.button 
+          whileTap={{ scale: 0.9, y: 5 }}
+          onClick={() => setActiveTab('OVERVIEW')}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'OVERVIEW' ? 'text-brand-600 scale-110' : 'text-slate-400'}`}
+        >
+          <Box className="w-6 h-6" />
+          <span className="text-[10px] font-bold">{isAr ? 'الرئيسية' : 'Home'}</span>
+        </motion.button>
+        <motion.button 
+          whileTap={{ scale: 0.9, y: 5 }}
+          onClick={() => setActiveTab('SEND_PARCEL')}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'SEND_PARCEL' ? 'text-brand-600 scale-110' : 'text-slate-400'}`}
+        >
+          <Package className="w-6 h-6" />
+          <span className="text-[10px] font-bold">{isAr ? 'إرسال' : 'Send'}</span>
+        </motion.button>
+        <motion.button 
+          whileTap={{ scale: 0.9, y: 5 }}
+          onClick={() => setActiveTab('WALLET')}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'WALLET' ? 'text-brand-600 scale-110' : 'text-slate-400'}`}
+        >
+          <Wallet className="w-6 h-6" />
+          <span className="text-[10px] font-bold">{isAr ? 'المحفظة' : 'Wallet'}</span>
+        </motion.button>
+        <motion.button 
+          whileTap={{ scale: 0.9, y: 5 }}
+          onClick={() => setActiveTab('PROFILE')}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'PROFILE' ? 'text-brand-600 scale-110' : 'text-slate-400'}`}
+        >
+          <UserIcon className="w-6 h-6" />
+          <span className="text-[10px] font-bold">{isAr ? 'حسابي' : 'Profile'}</span>
+        </motion.button>
+      </div>
+</div>
   );
 };

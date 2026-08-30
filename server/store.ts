@@ -372,7 +372,7 @@ class DataStore {
       shippingCost: 35.0,
       customsDutyEstimated: 0.0,
       escrowDepositRequired: 265.0,
-      currentStatus: 'PENDING_HUB_DROPOFF',
+      currentStatus: 'PENDING',
       senderLegalWaiverSigned: true,
       senderLegalWaiverTimestamp: new Date(Date.now() - 8 * 3600000).toISOString(),
       idempotencyKey: 'idemp-ship-103-seed',

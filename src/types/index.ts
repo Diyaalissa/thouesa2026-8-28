@@ -87,6 +87,8 @@ export interface Hub {
 
 export type ShipmentStatus =
   | 'DRAFT'
+  | 'PENDING'
+  | 'PENDING_REVIEW'
   | 'PENDING_HUB_DROPOFF'
   | 'PENDING_DROPOFF'
   | 'RECEIVED_AT_ORIGIN'

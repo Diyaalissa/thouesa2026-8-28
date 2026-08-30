@@ -205,7 +205,7 @@ shipmentsRouter.post('/', (req: Request, res: Response) => {
     shippingCost: quote.totalCostUsd,
     insuranceFee,
     escrowDepositRequired: quote.escrowDepositRequiredUsd,
-    currentStatus: 'PENDING_HUB_DROPOFF',
+    currentStatus: 'PENDING',
     senderLegalWaiverSigned: true,
     senderLegalWaiverTimestamp: new Date().toISOString(),
     paymentMethod,
@@ -415,4 +415,63 @@ shipmentsRouter.post('/:id/weight-discrepancy/respond', (req: Request, res: Resp
       shipment,
     });
   }
+});
+
+// Cancel shipment endpoint
+shipmentsRouter.post('/:id/cancel', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const shipment = db.shipments.get(id);
+
+  if (!shipment) {
+    return res.status(404).json({ success: false, error: 'Shipment not found' });
+  }
+
+  // Only allow cancellation if PENDING or PENDING_REVIEW or SUBMITTED
+  const cancellableStatuses = ['PENDING', 'PENDING_REVIEW'];
+  if (!cancellableStatuses.includes(shipment.currentStatus)) {
+    return res.status(400).json({ success: false, error: 'Order cannot be cancelled at this stage' });
+  }
+
+  shipment.currentStatus = 'CANCELLED';
+  shipment.updatedAt = new Date().toISOString();
+  db.shipments.set(shipment.id, shipment);
+
+  // Refund the total cost to the wallet
+  const senderWallet = db.wallets.get(shipment.senderId);
+  if (senderWallet) {
+    const refundAmount = shipment.shippingCost + (shipment.escrowDepositRequired || 0); // refund everything
+    senderWallet.balance = Number((senderWallet.balance + refundAmount).toFixed(2));
+    db.wallets.set(shipment.senderId, senderWallet);
+
+    db.recordTransaction({
+      transactionCode: `TXN-REF-${Date.now().toString().slice(-6)}`,
+      walletId: senderWallet.id,
+      userId: shipment.senderId,
+      userName: shipment.senderName,
+      shipmentId: shipment.id,
+      type: 'REFUND',
+      amount: refundAmount,
+      currency: 'USD',
+      exchangeRateToUsd: 1.0,
+      idempotencyKey: `idemp-ref-${shipment.id}-${Date.now()}`,
+      status: 'COMMITTED',
+      referenceNote: `Refund for cancelled order ${shipment.trackingNumber}`,
+    });
+  }
+
+  db.logAudit({
+    actorId: shipment.senderId,
+    actorName: shipment.senderName,
+    actorRole: 'SENDER',
+    domain: 'Logistics',
+    action: 'CANCEL_ORDER',
+    resourceType: 'Shipment',
+    resourceId: shipment.id,
+  });
+
+  return res.json({
+    success: true,
+    message: 'Order cancelled successfully and amount refunded to wallet.',
+    shipment,
+  });
 });

@@ -1,5 +1,6 @@
 import { UserProfile } from '../profile/UserProfile';
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import {
   Menu,
   X,
@@ -171,45 +172,29 @@ export const TravelerPortal: React.FC<TravelerPortalProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50" dir={isAr ? 'rtl' : 'ltr'}>
-      {/* Traveler Top Header */}
-      <header className="shrink-0 flex items-center justify-between px-6 py-4 bg-slate-900 text-white shadow-md z-10 relative">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white flex items-center justify-center transition-colors cursor-pointer border border-slate-700"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-          <div className="w-10 h-10 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold border border-teal-500/30">
-            <Plane className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-black tracking-wide">
-                {isAr ? 'بوابة المسافر المعتمد والضمان المالي' : 'Traveler Portal & Escrow'}
-              </h2>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-md border border-emerald-500/30 uppercase tracking-wider">
-                KYC {currentUser.kycStatus}
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              {isAr
-                ? 'مرحباً، ' + currentUser.fullName
-                : 'Welcome, ' + currentUser.fullName}
-            </p>
-          </div>
-        </div>
-      </header>
-
+    <div className="flex-1 flex flex-col min-h-0 h-full bg-slate-50" dir={isAr ? 'rtl' : 'ltr'}>
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar Navigation */}
         <aside
-          className={`shrink-0 flex flex-col bg-white border-${isAr ? 'l' : 'r'} border-slate-200 overflow-y-auto transition-all duration-300 z-20 ${
+          className={`hidden md:flex shrink-0 flex-col bg-white border-${isAr ? 'l' : 'r'} border-slate-200 overflow-y-auto transition-all duration-300 z-20 ${
             isSidebarOpen ? 'w-64' : 'w-20'
           }`}
         >
-          <div className="p-4 space-y-2 flex-1">
+          
+          <div className={`p-4 flex items-center border-b border-slate-100 ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
+            {isSidebarOpen && (
+              <span className="text-xs font-black text-slate-800 tracking-wider">
+                {isAr ? 'الخدمات' : 'SERVICES'}
+              </span>
+            )}
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 flex items-center justify-center transition-colors"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+          </div>
+<div className="p-4 space-y-2 flex-1">
             <button
               onClick={() => setActiveTab('MY_TRIPS')}
               className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
@@ -294,7 +279,7 @@ export const TravelerPortal: React.FC<TravelerPortalProps> = ({
 
 
         {/* Content Area */}
-        <main className="flex-1 min-w-0 overflow-y-auto bg-slate-50/50 p-6 space-y-6">
+        <main className="flex-1 min-w-0 overflow-y-auto bg-slate-50/50 p-4 md:p-6 pb-24 md:pb-6 space-y-6">
       {activeTab === 'PROFILE' && (
         <UserProfile currentUser={currentUser} locale={locale} isAr={isAr} />
       )}
@@ -691,6 +676,42 @@ export const TravelerPortal: React.FC<TravelerPortalProps> = ({
       />
         </main>
       </div>
-    </div>
+    
+      {/* Mobile Bottom Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex items-center justify-between z-40 pb-safe">
+        <motion.button 
+          whileTap={{ scale: 0.9, y: 5 }}
+          onClick={() => setActiveTab('MY_TRIPS')}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'MY_TRIPS' ? 'text-teal-600 scale-110' : 'text-slate-400'}`}
+        >
+          <Plane className="w-6 h-6" />
+          <span className="text-[10px] font-bold">{isAr ? 'رحلاتي' : 'Trips'}</span>
+        </motion.button>
+        <motion.button 
+          whileTap={{ scale: 0.9, y: 5 }}
+          onClick={() => setActiveTab('NEW_TRIP')}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'NEW_TRIP' ? 'text-teal-600 scale-110' : 'text-slate-400'}`}
+        >
+          <PlusCircle className="w-6 h-6" />
+          <span className="text-[10px] font-bold">{isAr ? 'رحلة جديدة' : 'New Trip'}</span>
+        </motion.button>
+        <motion.button 
+          whileTap={{ scale: 0.9, y: 5 }}
+          onClick={() => setActiveTab('WALLET')}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'WALLET' ? 'text-teal-600 scale-110' : 'text-slate-400'}`}
+        >
+          <Wallet className="w-6 h-6" />
+          <span className="text-[10px] font-bold">{isAr ? 'المحفظة' : 'Wallet'}</span>
+        </motion.button>
+        <motion.button 
+          whileTap={{ scale: 0.9, y: 5 }}
+          onClick={() => setActiveTab('PROFILE')}
+          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'PROFILE' ? 'text-teal-600 scale-110' : 'text-slate-400'}`}
+        >
+          <UserIcon className="w-6 h-6" />
+          <span className="text-[10px] font-bold">{isAr ? 'حسابي' : 'Profile'}</span>
+        </motion.button>
+      </div>
+</div>
   );
 };

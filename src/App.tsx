@@ -190,6 +190,27 @@ export default function App() {
     }
   };
 
+  const handleCancelShipment = async (shipmentId: string) => {
+    try {
+      const res = await safeFetchJson(`/api/shipments/${shipmentId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (res?.success) {
+        await fetchData();
+        return true;
+      }
+      if (res?.error) {
+        alert(res.error);
+      }
+      return false;
+    } catch (err) {
+      console.error('Shipment cancellation error:', err);
+      return false;
+    }
+  };
+
   const handleApproveWeightDiscrepancy = async (shipmentId: string, action: 'APPROVE' | 'REJECT') => {
     try {
       await safeFetchJson(`/api/shipments/${shipmentId}/approve-weight`, {
@@ -483,7 +504,7 @@ export default function App() {
         />
 
       {/* Main View Area */}
-      <main className={`flex-1 w-full mx-auto ${['MASTER_ADMIN', 'HUB_AGENT', 'HUB_MANAGER'].includes(currentRole) ? 'p-0 h-[calc(100vh-64px)] overflow-hidden' : 'max-w-7xl px-4 py-6'}`}>
+      <main className={`flex-1 w-full mx-auto flex flex-col min-h-0 ${['PUBLIC', 'LEGAL'].includes(currentRole) ? 'max-w-7xl px-4 py-6 overflow-visible' : 'p-0 overflow-hidden'}`}>
         {currentRole === 'PUBLIC' && (
           <LandingPage
             locale={locale}
@@ -505,6 +526,7 @@ export default function App() {
             hubs={activeHubs}
             onRefreshShipments={fetchData}
             onCreateShipment={handleCreateShipment}
+            onCancelShipment={handleCancelShipment}
             onApproveWeightDiscrepancy={handleApproveWeightDiscrepancy}
           />
         )}
@@ -571,8 +593,8 @@ export default function App() {
         )}
       </main>
 
-      {/* Global Unified Footer (Hidden for internal operational portals: Admin & Hub Agents) */}
-      {currentRole !== 'MASTER_ADMIN' && currentRole !== 'HUB_AGENT' && currentRole !== 'HUB_MANAGER' && (
+      {/* Global Unified Footer (Hidden for operational portals) */}
+      {['PUBLIC', 'LEGAL'].includes(currentRole) && (
         <Footer
           locale={locale}
           themeMode={themeMode}
