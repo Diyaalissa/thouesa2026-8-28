@@ -172,6 +172,9 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
   const [insuranceRequested, setInsuranceRequested] = useState(false);
   const [parcelDeclaredValue, setParcelDeclaredValue] = useState(400);
   const [parcelEstimatedWeightKg, setParcelEstimatedWeightKg] = useState(2.0);
+  const [deliveryType, setDeliveryType] = useState('HUB');
+  const [selectedTripId, setSelectedTripId] = useState('trip-1');
+  const [packagingRequested, setPackagingRequested] = useState(false);
   const [parcelLengthCm, setParcelLengthCm] = useState(25);
   const [parcelWidthCm, setParcelWidthCm] = useState(20);
   const [parcelHeightCm, setParcelHeightCm] = useState(8);
@@ -1001,11 +1004,9 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                 onChange={(e) => setParcelCategory(e.target.value as ItemCategory)}
                 className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
               >
-                <option value="ELECTRONICS">{isAr ? 'إلكترونيات وهواتف' : 'Electronics'}</option>
-                <option value="DOCUMENTS">{isAr ? 'وثائق ومستندات رسمية' : 'Documents'}</option>
-                <option value="CLOTHING_TEXTILES">{isAr ? 'ملابس وأقمشة' : 'Clothing'}</option>
-                <option value="MEDICATIONS_PERMITTED">{isAr ? 'أدوية مصرح بها' : 'Medications'}</option>
-                <option value="GIFTS_COSMETICS">{isAr ? 'هدايا ومستحضرات' : 'Gifts & Cosmetics'}</option>
+                <option value="ELECTRONICS">{isAr ? 'بضاعة' : 'Goods'}</option>
+                <option value="DOCUMENTS">{isAr ? 'أمانات' : 'Personal Items / Trusts'}</option>
+                <option value="GIFTS_COSMETICS">{isAr ? 'بضاعة جديدة' : 'New Goods'}</option>
               </select>
             </div>
 
@@ -1027,190 +1028,43 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
             </div>
           </div>
 
-          {/* Customs Condition Selector */}
-          <div className="space-y-2 p-4 bg-slate-950/70 border border-slate-800 rounded-2xl">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <BadgePercent className="w-4 h-4 text-emerald-400" />
-                <span>{isAr ? 'الحالة الجمركية للبضاعة / الأمانة (التعريفة الجمركية):' : 'Customs Classification & Duty Status:'}</span>
-              </label>
-              <span className="text-[11px] text-emerald-400 font-semibold">
-                {isAr ? `وجهة الشحنة: ${selectedDestHub?.countryCode || 'DZA'}` : `Destination: ${selectedDestHub?.countryCode || 'DZA'}`}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-              {/* Option A: Used Personal */}
-              <button
-                type="button"
-                onClick={() => {
-                  setParcelCondition('USED_PERSONAL');
-                  setCustomsRateOverride(undefined);
-                }}
-                className={`p-3 rounded-xl border text-right transition-all cursor-pointer flex flex-col justify-between ${
-                  parcelCondition === 'USED_PERSONAL'
-                    ? 'bg-emerald-950/60 border-emerald-500 text-white ring-1 ring-emerald-500'
-                    : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:bg-slate-850'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-xs text-emerald-300">
-                      {isAr ? 'أمانات شخصية مستعملة' : 'Used Personal Effects'}
-                    </span>
-                    <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-md text-[10px] font-bold">
-                      {isAr ? 'معفى 0%' : '0% Exempt'}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 leading-snug">
-                    {isAr
-                      ? 'مقتنيات شخصية مستعملة معفاة قانوناً من أي رسوم جمركية وفقاً للوائح الدولية.'
-                      : 'Used personal baggage exempt from customs duty.'}
-                  </p>
-                </div>
-              </button>
-
-              {/* Option B: New Personal */}
-              <button
-                type="button"
-                onClick={() => setParcelCondition('NEW_PERSONAL')}
-                className={`p-3 rounded-xl border text-right transition-all cursor-pointer flex flex-col justify-between ${
-                  parcelCondition === 'NEW_PERSONAL'
-                    ? 'bg-amber-950/60 border-amber-500 text-white ring-1 ring-amber-500'
-                    : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:bg-slate-850'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-xs text-amber-300">
-                      {isAr ? 'أمانات شخصية جديدة' : 'New Personal Goods'}
-                    </span>
-                    <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-md text-[10px] font-bold">
-                      {isAr ? `جمرك مقدر (${liveParcelQuote.customsRatePercent}%)` : `Est. ${liveParcelQuote.customsRatePercent}%`}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 leading-snug">
-                    {isAr
-                      ? 'أجهزة وهدايا ومشتريات شخصية جديدة تخضع للنسبة الجمركية لدولة الوجهة.'
-                      : 'Brand new personal shopping or electronics subject to destination duty.'}
-                  </p>
-                </div>
-              </button>
-
-              {/* Option C: New Commercial */}
-              <button
-                type="button"
-                onClick={() => setParcelCondition('NEW_COMMERCIAL')}
-                className={`p-3 rounded-xl border text-right transition-all cursor-pointer flex flex-col justify-between ${
-                  parcelCondition === 'NEW_COMMERCIAL'
-                    ? 'bg-blue-950/60 border-brand-500 text-white ring-1 ring-brand-500'
-                    : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:bg-slate-850'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-xs text-blue-300">
-                      {isAr ? 'بضائع تجارية جديدة' : 'New Commercial Items'}
-                    </span>
-                    <span className="px-2 py-0.5 bg-brand-500/20 text-blue-300 border border-brand-500/40 rounded-md text-[10px] font-bold">
-                      {isAr ? `تعريفة تجارية (${liveParcelQuote.customsRatePercent}%)` : `Commercial ${liveParcelQuote.customsRatePercent}%`}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 leading-snug">
-                    {isAr
-                      ? 'بضائع تجارية جديدة ومستوردات تخضع للتعريفة الجمركية التجارية الرسمية.'
-                      : 'Commercial inventory or new imported goods.'}
-                  </p>
-                </div>
-              </button>
-            </div>
-
-            {/* Custom Rate input toggle if condition is not exempt */}
-            {parcelCondition !== 'USED_PERSONAL' && (
-              <div className="pt-2 flex items-center justify-between text-xs bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
-                <span className="text-slate-300 font-semibold">
-                  {isAr ? 'تعديل نسبة الجمرك للدولة يدوياً (اختياري):' : 'Override Destination Duty Rate % (Optional):'}
-                </span>
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.5"
-                    value={customsRateOverride !== undefined ? customsRateOverride : liveParcelQuote.customsRatePercent}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value);
-                      setCustomsRateOverride(isNaN(val) ? undefined : val);
-                    }}
-                    className="w-16 px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-center font-bold text-emerald-400 focus:outline-none focus:border-emerald-500"
-                  />
-                  <span className="font-bold text-slate-400">%</span>
-                </div>
-              </div>
-            )}
+          {/* Trip Selection & Warning */}
+          <div className="p-4 bg-amber-950/30 border border-amber-500/40 rounded-2xl space-y-3">
+             <div className="flex items-center gap-2 text-amber-400 font-bold mb-2">
+                <Plane className="w-5 h-5" />
+                <span>{isAr ? 'اختيار الرحلة المتاحة للتوصيل' : 'Select Available Delivery Trip'}</span>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">{isAr ? 'الرحلة المقررة' : 'Scheduled Trip'}</label>
+                    <select value={selectedTripId} onChange={(e) => setSelectedTripId(e.target.value)} className="w-full px-3 py-2.5 bg-slate-800 border border-amber-500/50 rounded-xl text-xs text-white">
+                        <option>{isAr ? 'رحلة 15 أكتوبر - متاح 20 كغ' : 'Oct 15 Trip - 20kg Remaining'}</option>
+                        <option>{isAr ? 'رحلة 20 أكتوبر - متاح 5 كغ' : 'Oct 20 Trip - 5kg Remaining'}</option>
+                    </select>
+                 </div>
+                 <div className="flex flex-col justify-center">
+                    <p className="text-xs text-amber-200 font-bold bg-amber-500/20 p-2 rounded-lg border border-amber-500/30 text-center">
+                       ⚠️ {isAr ? 'تنبيه إلزامي: يجب تسليم الطلب للمكتب قبل 3 أيام من تاريخ الرحلة' : 'Mandatory Alert: Deliver to hub 3 days prior to trip date!'}
+                    </p>
+                    <p className="text-[10px] text-slate-400 text-center mt-2">
+                       {isAr ? 'تاريخ التسليم المتوقع: بعد 3 أيام عمل من تاريخ الرحلة' : 'Expected Delivery: 3 business days after trip'}
+                    </p>
+                 </div>
+             </div>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">{isAr ? 'القيمة المصرح بها ($ لتحديد الضمان المسترد)' : 'Declared Value ($)'}</label>
-              <input
-                type="number"
-                min="10"
-                value={parcelDeclaredValue}
-                onChange={(e) => setParcelDeclaredValue(Number(e.target.value))}
-                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold text-emerald-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">{isAr ? 'الوزن التقديري (كغ)' : 'Estimated Weight (kg)'}</label>
-              <input
-                type="number"
-                step="0.1"
-                min="0.2"
-                max="25"
-                value={parcelEstimatedWeightKg}
-                onChange={(e) => setParcelEstimatedWeightKg(Number(e.target.value))}
-                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">{isAr ? 'وصف تفصيلي لمحتويات الطرد' : 'Detailed Item Description'}</label>
-            <textarea
-              rows={2}
-              value={parcelDescription}
-              onChange={(e) => setParcelDescription(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-            />
-          </div>
-
+          {/* Options */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">{isAr ? 'صورة للطرد (اختياري / رابط)' : 'Parcel Photo URL (Optional)'}</label>
-              <input
-                type="text"
-                placeholder="https://example.com/photo.jpg"
-                value={parcelPhotoUrl}
-                onChange={(e) => setParcelPhotoUrl(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-              />
-            </div>
-            <div className="flex items-center gap-3 bg-slate-800/50 p-3 rounded-xl border border-slate-700">
+             <div className="flex items-center gap-3 bg-slate-800/50 p-3 rounded-xl border border-slate-700">
               <input
                 type="checkbox"
-                checked={insuranceRequested}
-                onChange={(e) => setInsuranceRequested(e.target.checked)}
                 className="w-5 h-5 text-brand-500 rounded-md cursor-pointer"
-                id="insuranceCheckbox"
+                id="packagingCheckbox" checked={packagingRequested} onChange={(e) => setPackagingRequested(e.target.checked)}
               />
-              <label htmlFor="insuranceCheckbox" className="text-xs font-semibold text-slate-300 cursor-pointer">
-                {isAr ? 'أرغب في تأمين الشحنة (رسوم إضافية)' : 'Request Insurance (Extra Fee)'}
+              <label htmlFor="packagingCheckbox" className="text-xs font-semibold text-slate-300 cursor-pointer">
+                {isAr ? 'تغليف آمن ومحكم (رسوم إضافية)' : 'Secure Packaging (Extra Fee)'}
               </label>
             </div>
           </div>
-
           {/* Live Quote Breakdown Card */}
           <div className="p-4 bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl space-y-3">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
@@ -1232,19 +1086,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                 <span className="text-slate-400 text-[11px] block">{isAr ? 'رسوم التأمين والحماية' : 'Insurance Fee'}</span>
                 <span className="font-bold text-white text-sm">${liveParcelQuote.insuranceUsd}</span>
               </div>
-              <div className={`p-2.5 rounded-xl border ${liveParcelQuote.customsDutyUsd > 0 ? 'bg-amber-950/40 border-amber-500/40' : 'bg-emerald-950/40 border-emerald-500/40'}`}>
-                <span className="text-slate-400 text-[11px] block">{isAr ? 'الجمرك المقدر' : 'Est. Customs Duty'}</span>
-                <div className="flex items-center gap-1">
-                  <span className={`font-bold text-sm ${liveParcelQuote.customsDutyUsd > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                    ${liveParcelQuote.customsDutyUsd}
-                  </span>
-                  {liveParcelQuote.isCustomsExempt ? (
-                    <span className="text-[10px] text-emerald-400 font-bold">({isAr ? 'معفى 0%' : '0%'})</span>
-                  ) : (
-                    <span className="text-[10px] text-amber-400 font-bold">({liveParcelQuote.customsRatePercent}%)</span>
-                  )}
-                </div>
-              </div>
+
               <div className="bg-brand-950/60 p-2.5 rounded-xl border border-brand-500/50">
                 <span className="text-brand-300 text-[11px] block font-bold">{isAr ? 'الإجمالي المطلوب' : 'Total Amount'}</span>
                 <span className="font-black text-brand-300 text-base">${liveParcelQuote.totalCostUsd}</span>
@@ -1265,7 +1107,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-              <button
+              {selectedOriginHub?.countryCode === 'JOR' && ( <button
                 type="button"
                 onClick={() => setSelectedPaymentGateway('CLIQ_JOR')}
                 className={`p-2.5 rounded-xl border text-center font-bold transition-all cursor-pointer ${
@@ -1275,8 +1117,8 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                 }`}
               >
                 <span>🇯🇴 CliQ Jordan</span>
-              </button>
-              <button
+              </button> )}
+              {selectedOriginHub?.countryCode === 'DZA' && ( <button
                 type="button"
                 onClick={() => setSelectedPaymentGateway('EDAHABIA_DZA')}
                 className={`p-2.5 rounded-xl border text-center font-bold transition-all cursor-pointer ${
@@ -1286,8 +1128,8 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                 }`}
               >
                 <span>🇩🇿 بريدي موب / الذهبية</span>
-              </button>
-              <button
+              </button> )}
+              {selectedOriginHub?.countryCode === 'DZA' && ( <button
                 type="button"
                 onClick={() => setSelectedPaymentGateway('CIB_DZA')}
                 className={`p-2.5 rounded-xl border text-center font-bold transition-all cursor-pointer ${
@@ -1297,7 +1139,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                 }`}
               >
                 <span>🇩🇿 بطاقة CIB البنكية</span>
-              </button>
+              </button> )}
               <button
                 type="button"
                 onClick={() => setSelectedPaymentGateway('ESCROW_WALLET')}
@@ -1562,206 +1404,8 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
             ))}
 
             {/* Pro-forma Invoice Breakdown */}
-            <div className="p-5 bg-brand-950/40 border border-brand-500/30 rounded-2xl flex flex-col gap-3 text-xs">
-              <h4 className="font-bold text-brand-300 mb-2 border-b border-brand-500/20 pb-2">
-                {isAr ? 'الفاتورة التقديرية (Pro-forma Invoice)' : 'Pro-forma Invoice Breakdown'}
-              </h4>
-              <div className="flex items-center justify-between text-slate-300">
-                <span>{isAr ? 'إجمالي قيمة المنتجات:' : 'Items Total Cost:'}</span>
-                <span className="font-semibold">${storeItems.reduce((sum, item) => sum + (item.totalCost || 0), 0).toFixed(2)}</span>
-              </div>
-              <div className="flex items-center justify-between text-slate-300">
-                <span>{isAr ? 'عمولة التسوق (5%):' : 'Shopper Fee (5%):'}</span>
-                <span className="font-semibold">${(storeItems.reduce((sum, item) => sum + (item.totalCost || 0), 0) * 0.05).toFixed(2)}</span>
-              </div>
-              <div className="flex items-center justify-between text-slate-300">
-                <span>{isAr ? 'رسوم الشحن التقديرية (مبدئي):' : 'Est. Shipping (Initial):'}</span>
-                <span className="font-semibold">$15.00</span>
-              </div>
-              <div className="flex items-center justify-between text-brand-200 pt-3 border-t border-brand-500/20">
-                <span className="font-bold">{isAr ? 'الإجمالي التقديري المطلوب:' : 'Total Estimated Required:'}</span>
-                <span className="text-base font-black text-emerald-400">
-                  ${(storeItems.reduce((sum, item) => sum + (item.totalCost || 0), 0) * 1.05 + 15).toFixed(2)} USD
-                </span>
-              </div>
-              <p className="text-[10px] text-brand-400/70 mt-1">
-                {isAr ? '*هذه التكلفة تقديرية وسيتم تأكيدها نهائياً بعد استلام طلبك.' : '*This is an estimated cost and will be finalized upon receipt of your order.'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab('MY_SHIPMENTS')}
-              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold"
-            >
-              {isAr ? 'إلغاء' : 'Cancel'}
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex items-center gap-2 px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-brand-600/30 cursor-pointer disabled:opacity-50"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>{isSubmitting ? (isAr ? 'جاري الإرسال...' : 'Submitting...') : (isAr ? 'تأكيد طلب الشراء الدولي' : 'Confirm Global Purchase')}</span>
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* 4. OPTION 3 WIZARD: BUY FROM SPECIFIC COUNTRY & SHIP */}
-      {activeTab === 'SPECIFIC_COUNTRY_BUY' && (
-        <form onSubmit={handleCountryBuySubmit} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 text-white shadow-xl max-w-4xl mx-auto space-y-6">
-          <div className="border-b border-slate-800 pb-4">
-            <h3 className="text-lg font-black text-white flex items-center gap-2">
-              <ShoppingBag className="w-5 h-5 text-emerald-400" />
-              <span>{isAr ? 'الخيار الثالث: الشراء من دولة محددة والشحن' : 'Option 3: Buy from Specific Country & Ship'}</span>
-            </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              {isAr
-                ? 'اطلب منتجات مميزة من أسواق الأردن، الجزائر، مصر، سلطنة عُمان، أو السعودية ويقوم كادرنا أو المسافرون بشرائها وتوصيلها'
-                : 'Request regional products from verified local markets & travelers'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">{isAr ? 'الدولة المستهدفة للشراء' : 'Source Country'}</label>
-              <select
-                value={targetCountry}
-                onChange={(e) => setTargetCountry(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-              >
-                {uniqueCountries.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {isAr ? c.nameAr : c.nameEn}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">{isAr ? 'السوق أو المتجر المحلي' : 'Market / Merchant Name'}</label>
-              <input
-                type="text"
-                required
-                value={localMarketName}
-                onChange={(e) => setLocalMarketName(e.target.value)}
-                placeholder={isAr ? 'مثال: سوق مطرح (مسقط) / سوق البخارية (عمان)' : 'e.g. Mutrah Souq (Muscat)'}
-                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-              />
-            </div>
-          </div>
-
-          {/* Items Table */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-emerald-400 uppercase tracking-wide">
-                {isAr ? 'قائمة المنتجات والكميات المطلوبة:' : 'Requested Regional Items & Quantities:'}
-              </label>
-              <button
-                type="button"
-                onClick={addCountryItem}
-                className="flex items-center gap-1 text-xs font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/30 cursor-pointer"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>{isAr ? 'إضافة منتج آخر' : 'Add Item'}</span>
-              </button>
-            </div>
-
-            {countryBuyItems.map((item, idx) => (
-              <div key={item.id} className="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                  <span>{isAr ? `الطلب رقم ${idx + 1}` : `Item #${idx + 1}`}</span>
-                  {countryBuyItems.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeCountryItem(idx)}
-                      className="text-red-400 hover:text-red-300 text-[11px]"
-                    >
-                      {isAr ? 'حذف' : 'Remove'}
-                    </button>
-                  )}
-                </div>
-
-                <div>
-                  <input
-                    type="text"
-                    required
-                    value={item.name}
-                    onChange={(e) => updateCountryItem(idx, 'name', e.target.value)}
-                    placeholder={isAr ? 'اسم المنتج أو الصنف بالتفصيل' : 'Item description'}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[10px] text-slate-400 mb-1">{isAr ? 'الكمية المطلوبة' : 'Quantity'}</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={item.quantity}
-                      onChange={(e) => updateCountryItem(idx, 'quantity', Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-center font-bold text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-400 mb-1">{isAr ? 'السعر التقديري للوحدة ($)' : 'Unit Price ($)'}</label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="0.5"
-                      value={item.unitPrice}
-                      onChange={(e) => updateCountryItem(idx, 'unitPrice', Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-center font-bold text-emerald-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-400 mb-1">{isAr ? 'الإجمالي ($)' : 'Total ($)'}</label>
-                    <div className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-center font-black text-emerald-400">
-                      ${(item.totalCost || 0).toFixed(2)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <input
-                      type="url"
-                      value={item.imageUrl || ''}
-                      onChange={(e) => updateCountryItem(idx, 'imageUrl', e.target.value)}
-                      placeholder={isAr ? 'رابط صورة المنتج (اختياري)' : 'Product Image URL (Optional)'}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="text"
-                      value={item.sizeVolume || ''}
-                      onChange={(e) => updateCountryItem(idx, 'sizeVolume', e.target.value)}
-                      placeholder={isAr ? 'الحجم / الوزن التقديري (مثل: 2 كجم، صندوق صغير)' : 'Est. Size/Weight (e.g., 2kg, small box)'}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <input
-                    type="text"
-                    value={item.specsOrVariants || ''}
-                    onChange={(e) => updateCountryItem(idx, 'specsOrVariants', e.target.value)}
-                    placeholder={isAr ? 'ملاحظات التغليف والنوعية' : 'Packaging & Quality notes'}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-                  />
-                </div>
-              </div>
-            ))}
-
-            {/* Pro-forma Invoice Breakdown */}
             <div className="p-5 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl flex flex-col gap-3 text-xs">
-              <h4 className="font-bold text-emerald-300 mb-2 border-b border-emerald-500/20 pb-2">
+              <h4 className="font-bold text-emerald-400 mb-2 border-b border-emerald-500/20 pb-2">
                 {isAr ? 'الفاتورة التقديرية (Pro-forma Invoice)' : 'Pro-forma Invoice Breakdown'}
               </h4>
               <div className="flex items-center justify-between text-slate-300">
@@ -1777,17 +1421,41 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                 <span className="font-semibold">$15.00</span>
               </div>
               <div className="flex items-center justify-between text-emerald-200 pt-3 border-t border-emerald-500/20">
-                <span className="font-bold">{isAr ? 'الإجمالي التقديري المطلوب:' : 'Total Estimated Required:'}</span>
-                <span className="text-base font-black text-emerald-400">
+                <span className="font-bold">{isAr ? 'الإجمالي التقديري للتكلفة:' : 'Total Estimated Cost:'}</span>
+                <span className="text-sm font-bold text-slate-300 line-through opacity-70">
                   ${(countryBuyItems.reduce((sum, item) => sum + (item.totalCost || 0), 0) * 1.05 + 15).toFixed(2)} USD
                 </span>
               </div>
+              <div className="flex items-center justify-between text-emerald-300 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20 mt-1">
+                <span className="font-black">{isAr ? 'عربون تأكيد الطلب المطلوب دفعه الآن (50%):' : 'Required Confirmation Deposit (50%):'}</span>
+                <span className="text-lg font-black text-emerald-400">
+                  ${((countryBuyItems.reduce((sum, item) => sum + (item.totalCost || 0), 0) * 1.05 + 15) / 2).toFixed(2)} USD
+                </span>
+              </div>
               <p className="text-[10px] text-emerald-400/70 mt-1">
-                {isAr ? '*هذه التكلفة تقديرية وسيتم تأكيدها نهائياً بعد استلام طلبك.' : '*This is an estimated cost and will be finalized upon receipt of your order.'}
+                {isAr ? '*يتم دفع الـ 50% المتبقية وأي رسوم جمركية محتملة عند وصول واستلام الطلب.' : '*The remaining 50% and any potential customs duties are paid upon arrival and delivery.'}
               </p>
             </div>
           </div>
-
+          {/* Options */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div className="flex items-center gap-3 bg-slate-800/50 p-3 rounded-xl border border-slate-700">
+              <input
+                type="checkbox"
+                className="w-5 h-5 text-emerald-500 rounded-md cursor-pointer"
+                id="packagingCheckboxOpt3" checked={packagingRequested} onChange={(e) => setPackagingRequested(e.target.checked)}
+              />
+              <label htmlFor="packagingCheckboxOpt3" className="text-xs font-semibold text-slate-300 cursor-pointer">
+                {isAr ? 'تغليف آمن ومحكم (رسوم إضافية)' : 'Secure Packaging (Extra Fee)'}
+              </label>
+            </div>
+            <div>
+              <select className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white">
+                <option value="HUB">{isAr ? 'الاستلام من المكتب' : 'Hub Pickup'}</option>
+                <option value="HOME">{isAr ? 'توصيل لباب البيت' : 'Home Delivery'}</option>
+              </select>
+            </div>
+          </div>
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -1802,12 +1470,11 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
               className="flex items-center gap-2 px-6 py-2.5 bg-teal-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-teal-600/30 cursor-pointer disabled:opacity-50"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>{isSubmitting ? (isAr ? 'جاري الإرسال...' : 'Submitting...') : (isAr ? 'تأكيد طلب الشراء والشحن' : 'Confirm Country Sourcing')}</span>
+              <span>{isSubmitting ? (isAr ? 'جاري الإرسال...' : 'Submitting...') : (isAr ? 'دفع العربون وتأكيد الطلب' : 'Pay Deposit & Confirm')}</span>
             </button>
           </div>
         </form>
       )}
-
       {/* 5. TAB: RECEIVED ORDERS & ACTIVE SHIPMENTS WITH ITEM DETAILS, QUANTITIES & PRICES */}
       {activeTab === 'MY_SHIPMENTS' && (
         <div className="space-y-6">
