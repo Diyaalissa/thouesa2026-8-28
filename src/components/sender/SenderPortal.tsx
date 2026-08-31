@@ -658,7 +658,16 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
         <UserProfile currentUser={currentUser} locale={locale} isAr={isAr} onNavigate={(tab) => setActiveTab(tab as any)} />
       )}
       {activeTab === 'DISPUTES' && (
-        <DisputesDashboard currentUser={currentUser} isAr={isAr} />
+        <DisputesDashboard 
+          currentUser={currentUser} 
+          isAr={isAr}
+          onNavigateToShipment={(shipmentId) => {
+            const shp = senderShipments.find(s => s.id === shipmentId || s.trackingNumber === shipmentId);
+            if (shp) setSelectedShipment(shp);
+            setActiveTab('MY_SHIPMENTS');
+          }}
+          onNavigateToWallet={() => setActiveTab('WALLET')}
+        />
       )}
 
                 {activeTab === 'SEND_PARCEL' && (
@@ -2303,57 +2312,72 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
         </div>
       )}
     
-      {/* Mobile Bottom Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 flex items-center justify-between z-40 pb-safe shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+      {/* Mobile Bottom Bar (Smart Navigation Architecture) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-1.5 flex items-center justify-around z-40 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+        {/* 1. Home Dashboard */}
         <motion.button 
-          whileTap={{ scale: 0.9, y: 5 }}
+          whileTap={{ scale: 0.92 }}
           onClick={() => setActiveTab('OVERVIEW')}
-          className={`flex flex-col items-center justify-center w-16 gap-1 transition-all ${activeTab === 'OVERVIEW' ? 'text-brand-600 scale-110' : 'text-slate-400 hover:text-slate-600'}`}
+          className={`flex flex-col items-center justify-center py-1 flex-1 transition-all cursor-pointer ${
+            activeTab === 'OVERVIEW' ? 'text-brand-600 font-black' : 'text-slate-400 hover:text-slate-600'
+          }`}
         >
-          <Home className="w-5 h-5" />
-          <span className="text-[10px] font-bold">{isAr ? 'الرئيسية' : 'Home'}</span>
+          <Home className={`w-5 h-5 transition-transform ${activeTab === 'OVERVIEW' ? 'scale-110' : ''}`} />
+          <span className="text-[10px] mt-1 font-bold tracking-tight">{isAr ? 'الرئيسية' : 'Home'}</span>
         </motion.button>
+
+        {/* 2. My Orders (Direct access to order timeline & dispute trigger) */}
         <motion.button 
-          whileTap={{ scale: 0.9, y: 5 }}
+          whileTap={{ scale: 0.92 }}
           onClick={() => setActiveTab('MY_SHIPMENTS')}
-          className={`flex flex-col items-center justify-center w-16 gap-1 transition-all ${activeTab === 'MY_SHIPMENTS' ? 'text-brand-600 scale-110' : 'text-slate-400 hover:text-slate-600'}`}
+          className={`flex flex-col items-center justify-center py-1 flex-1 transition-all cursor-pointer ${
+            activeTab === 'MY_SHIPMENTS' ? 'text-brand-600 font-black' : 'text-slate-400 hover:text-slate-600'
+          }`}
         >
-          <Package className="w-5 h-5" />
-          <span className="text-[10px] font-bold">{isAr ? 'طلباتي' : 'Orders'}</span>
+          <Package className={`w-5 h-5 transition-transform ${activeTab === 'MY_SHIPMENTS' ? 'scale-110' : ''}`} />
+          <span className="text-[10px] mt-1 font-bold tracking-tight">{isAr ? 'طلباتي' : 'Orders'}</span>
         </motion.button>
         
-        {/* Floating Action Button (Center) */}
-        <div className="relative -top-5 w-16 flex justify-center">
+        {/* 3. Central Action: Create Order (FAB) */}
+        <div className="relative -top-4 flex items-center justify-center px-1">
           <motion.button 
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
             onClick={() => setIsCreateOrderMenuOpen(!isCreateOrderMenuOpen)}
-            className="w-12 h-12 bg-brand-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-brand-500/30"
+            className="w-13 h-13 bg-gradient-to-tr from-brand-600 to-brand-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-brand-500/40 ring-4 ring-white cursor-pointer"
+            aria-label={isAr ? 'إنشاء طلب جديد' : 'Create Order'}
           >
-            <Plus className={`w-6 h-6 transition-transform ${isCreateOrderMenuOpen ? 'rotate-45' : ''}`} />
+            <Plus className={`w-6 h-6 transition-transform duration-200 ${isCreateOrderMenuOpen ? 'rotate-45' : ''}`} />
           </motion.button>
         </div>
 
+        {/* 4. Wallet Dashboard */}
         <motion.button 
-          whileTap={{ scale: 0.9, y: 5 }}
+          whileTap={{ scale: 0.92 }}
           onClick={() => setActiveTab('WALLET')}
-          className={`flex flex-col items-center justify-center w-16 gap-1 transition-all ${activeTab === 'WALLET' ? 'text-brand-600 scale-110' : 'text-slate-400 hover:text-slate-600'}`}
+          className={`flex flex-col items-center justify-center py-1 flex-1 transition-all cursor-pointer ${
+            activeTab === 'WALLET' ? 'text-brand-600 font-black' : 'text-slate-400 hover:text-slate-600'
+          }`}
         >
-          <Wallet className="w-5 h-5" />
-          <span className="text-[10px] font-bold">{isAr ? 'المحفظة' : 'Wallet'}</span>
+          <Wallet className={`w-5 h-5 transition-transform ${activeTab === 'WALLET' ? 'scale-110' : ''}`} />
+          <span className="text-[10px] mt-1 font-bold tracking-tight">{isAr ? 'المحفظة' : 'Wallet'}</span>
         </motion.button>
+
+        {/* 5. Profile & More (Dynamic Badge on active dispute updates) */}
         <motion.button 
-          whileTap={{ scale: 0.9, y: 5 }}
+          whileTap={{ scale: 0.92 }}
           onClick={() => setActiveTab('PROFILE')}
-          className={`relative flex flex-col items-center justify-center w-16 gap-1 transition-all ${activeTab === 'PROFILE' ? 'text-brand-600 scale-110' : 'text-slate-400 hover:text-slate-600'}`}
+          className={`relative flex flex-col items-center justify-center py-1 flex-1 transition-all cursor-pointer ${
+            activeTab === 'PROFILE' || activeTab === 'DISPUTES' ? 'text-brand-600 font-black' : 'text-slate-400 hover:text-slate-600'
+          }`}
         >
           <div className="relative">
-            <UserIcon className="w-5 h-5" />
+            <UserIcon className={`w-5 h-5 transition-transform ${activeTab === 'PROFILE' ? 'scale-110' : ''}`} />
             {hasPendingDispute && (
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full animate-pulse"></span>
+              <span className="absolute -top-1 -end-1 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full animate-pulse shadow-sm" />
             )}
           </div>
-          <span className="text-[10px] font-bold">{isAr ? 'حسابي' : 'Profile'}</span>
+          <span className="text-[10px] mt-1 font-bold tracking-tight">{isAr ? 'حسابي' : 'Profile'}</span>
         </motion.button>
       </div>
 

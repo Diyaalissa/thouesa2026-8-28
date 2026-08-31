@@ -114,6 +114,19 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
           receiptUrl: 'https://example.com/receipt.jpg'
         },
         {
+          id: 'tx-5',
+          transactionCode: 'TXN-9988-DSP',
+          walletId: wallet?.id || 'w-1',
+          userId: currentUser.id,
+          type: 'ESCROW_REFUND',
+          amount: 25,
+          currency: 'USD',
+          status: 'COMMITTED',
+          createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+          relatedShipmentId: 'SHP-8812',
+          note: isAr ? 'تعويض مالي - نزاع رقم #DSP-0881' : 'Compensation - Dispute #DSP-0881'
+        },
+        {
           id: 'tx-3',
           transactionCode: 'TXN-9984-REF',
           walletId: wallet?.id || 'w-1',

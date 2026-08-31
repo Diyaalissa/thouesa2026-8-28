@@ -13,7 +13,11 @@ import {
   ArrowRight,
   TrendingUp,
   MapPin,
-  Box
+  Box,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  ShieldAlert
 } from 'lucide-react';
 
 interface SenderOverviewProps {
@@ -144,11 +148,50 @@ export const SenderOverview: React.FC<SenderOverviewProps> = ({
             </p>
           </div>
         </div>
-        <button className="relative w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
+        <button 
+          onClick={() => onNavigate('PROFILE')}
+          className="relative w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors cursor-pointer"
+        >
           <Bell className="w-5 h-5 text-slate-700" />
-          <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+          <span className="absolute top-2 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
         </button>
       </div>
+
+      {/* Dynamic Dispute Alert Banner (Contextual Smart Access) */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-r from-red-500/10 via-amber-500/10 to-red-500/5 border border-red-200 dark:border-red-900/40 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-sm hover:border-red-300 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-red-900 dark:text-red-300">
+                {isAr ? 'لديك نزاع بانتظار ردك وتأكيدك' : 'You have an active dispute requiring your reply'}
+              </span>
+              <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-black rounded-full animate-pulse">
+                {isAr ? 'إجراء مطلوب' : 'Action Required'}
+              </span>
+            </div>
+            <p className="text-[11px] text-red-700/80 dark:text-red-400 mt-0.5">
+              {isAr 
+                ? 'قامت الإدارة بالرد على تذكرة الشحنة. يرجى مراجعة التفاصيل لحسم الضمان.' 
+                : 'Support has responded to your shipment dispute. Review details to finalize escrow.'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => onNavigate('DISPUTES')}
+          className="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black transition-transform active:scale-95 shadow-sm shadow-red-500/20 shrink-0 flex items-center gap-1.5 cursor-pointer"
+        >
+          <span>{isAr ? 'متابعة النزاع' : 'View Dispute'}</span>
+          {isAr ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+        </button>
+      </motion.div>
 
       {/* Wallet Card */}
       <motion.div 

@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Lock,
   Camera,
+  Clock,
 } from 'lucide-react';
 import { Dispute, Locale, Shipment, User } from '../../types';
 
@@ -221,6 +222,18 @@ export const CreateDisputeModal: React.FC<CreateDisputeModalProps> = ({
                 <img src={photoUrl} alt="Evidence preview" className="w-full h-full object-cover" />
               </div>
             )}
+          </div>
+
+          {/* Response SLA Commitment */}
+          <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-3 text-emerald-300">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+              <Clock className="w-4 h-4 text-emerald-400" />
+            </div>
+            <p className="text-xs font-bold leading-relaxed">
+              {isAr
+                ? 'تم استلام شكواك، سيقوم فريقنا بالرد والتحكيم خلال 24 ساعة كحد أقصى مع تجميد أموال الضمان فوراً.'
+                : 'Your dispute will be handled with high priority: team response guaranteed within 24 hours.'}
+            </p>
           </div>
 
           {/* Actions */}
