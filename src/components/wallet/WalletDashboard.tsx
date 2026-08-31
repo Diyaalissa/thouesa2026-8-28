@@ -33,17 +33,37 @@ interface WalletDashboardProps {
 
 export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, wallet, locale, shipments = [] }) => {
   const isAr = locale === 'ar';
-  const isJordanian = currentUser.phone?.startsWith('+962');
-  const isAlgerian = currentUser.phone?.startsWith('+213');
-  const userCurrency = isJordanian ? 'JOD' : isAlgerian ? 'DZD' : 'USD';
-  const currencySymbol = userCurrency === 'JOD' ? 'د.أ' : userCurrency === 'DZD' ? 'د.ج' : '$';
-  const secondaryCurrency = isAlgerian ? 'DZD' : 'JOD'; // Just as an example for dual currency
+  const isJordanian = currentUser.phone?.startsWith('+962') || currentUser.country === 'JOR';
+  const isAlgerian = currentUser.phone?.startsWith('+213') || currentUser.country === 'DZA';
   
-  const [depositAmount, setDepositAmount] = useState<number>(100);
-  const [paymentMethod, setPaymentMethod] = useState('CARD');
+  // Base primary/secondary currency logic
+  const primaryCurrency = isJordanian ? 'JOD' : isAlgerian ? 'DZD' : 'USD';
+  const secondaryCurrency = isJordanian ? 'DZD' : isAlgerian ? 'JOD' : 'JOD';
+  const currencySymbol = primaryCurrency === 'JOD' ? 'د.أ' : primaryCurrency === 'DZD' ? 'د.ج' : '$';
+
+  // Approximate FX conversion rates for display
+  // 1 USD = 0.709 JOD, 1 USD = 134.5 DZD => 1 JOD = ~189.7 DZD
+  const convertAmount = (amountInUsd: number, target: 'JOD' | 'DZD' | 'USD') => {
+    if (target === 'JOD') return amountInUsd * 0.709;
+    if (target === 'DZD') return amountInUsd * 134.5;
+    return amountInUsd;
+  };
+
+  const formatDualCurrency = (amountInUsd: number) => {
+    const primVal = convertAmount(amountInUsd, primaryCurrency as any);
+    const secVal = convertAmount(amountInUsd, secondaryCurrency as any);
+    return {
+      primary: formatCurrency(primVal, primaryCurrency as any),
+      secondary: formatCurrency(secVal, secondaryCurrency as any),
+    };
+  };
+  
+  const [depositAmount, setDepositAmount] = useState<number>(isJordanian ? 50 : isAlgerian ? 5000 : 100);
+  const [paymentMethod, setPaymentMethod] = useState(isJordanian ? 'CLIQ' : isAlgerian ? 'BARIDIMOB' : 'CARD');
   const [isDepositing, setIsDepositing] = useState(false);
   const [transactions, setTransactions] = useState<LedgerTransaction[]>([]);
   const [loadingTx, setLoadingTx] = useState(true);
+  const [receiptFile, setReceiptFile] = useState<string | null>(null);
   
   // Modals state
   const [selectedInvoice, setSelectedInvoice] = useState<LedgerTransaction | null>(null);
@@ -51,19 +71,30 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [txFilter, setTxFilter] = useState('ALL');
 
-  // Calculate Reserved Balance (Escrow)
-  const reservedBalance = useMemo(() => {
+  // Calculate Reserved Balance (Escrow - 50% down payment for in-progress shipments)
+  const reservedBalanceUsd = useMemo(() => {
     return shipments
       .filter(s => ['PENDING_HUB_DROPOFF', 'RECEIVED_AT_ORIGIN', 'IN_TRANSIT', 'CUSTOMS_CLEARANCE', 'CUSTOMS_HELD', 'READY_FOR_DELIVERY'].includes(s.currentStatus))
-      .reduce((sum, s) => sum + (s.declaredValue || 0) * 0.5, 0); // Assuming 50% escrow
+      .reduce((sum, s) => sum + (s.declaredValue || 0) * 0.5, 0);
   }, [shipments]);
 
-  // Calculate Pending Payments (Quick Settle)
+  // Calculate Pending Payments (Quick Settle for arrived packages pending second 50% + customs)
   const pendingPayments = useMemo(() => {
     return shipments.filter(s => s.currentStatus === 'READY_FOR_DELIVERY' || s.currentStatus === 'CUSTOMS_HELD');
   }, [shipments]);
   
-  const totalPendingAmount = pendingPayments.reduce((sum, s) => sum + (s.declaredValue || 0) * 0.5, 0); // Remaining 50%
+  const totalPendingAmountUsd = useMemo(() => {
+    return pendingPayments.reduce((sum, s) => {
+      const remaining50 = (s.declaredValue || 0) * 0.5;
+      const customsFee = s.currentStatus === 'CUSTOMS_HELD' ? 25 : 0;
+      return sum + remaining50 + customsFee;
+    }, 0);
+  }, [pendingPayments]);
+
+  const availableBalanceUsd = wallet?.balance || 0;
+  const availableDual = formatDualCurrency(availableBalanceUsd);
+  const reservedDual = formatDualCurrency(reservedBalanceUsd);
+  const pendingDual = formatDualCurrency(totalPendingAmountUsd);
 
   useEffect(() => {
     fetchTransactions();
@@ -71,7 +102,7 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
 
   const fetchTransactions = async () => {
     setLoadingTx(true);
-    // Mocking transactions for UI demonstration based on requirements
+    // Mocking real-looking ledger records
     setTimeout(() => {
       setTransactions([
         {
@@ -84,7 +115,7 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
           currency: 'USD',
           status: 'COMMITTED',
           createdAt: new Date().toISOString(),
-          note: 'Bank Transfer (Verified)'
+          note: isJordanian ? 'إيداع عبر CliQ (معتمد)' : isAlgerian ? 'إيداع عبر بريدي موب (معتمد)' : 'Credit Card Top-up'
         },
         {
           id: 'tx-2',
@@ -97,7 +128,7 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
           status: 'COMMITTED',
           createdAt: new Date(Date.now() - 86400000).toISOString(),
           relatedShipmentId: 'SHP-2024-8891',
-          note: '50% Deposit for Shipment'
+          note: isAr ? 'خصم عربون 50% لشحنة ملابس وأحذية' : '50% Escrow deposit for apparel shipment'
         },
         {
           id: 'tx-4',
@@ -110,8 +141,8 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
           status: 'COMMITTED',
           createdAt: new Date(Date.now() - 43200000).toISOString(),
           relatedShipmentId: 'SHP-2024-8891',
-          note: isAr ? 'رسوم التخليص الجمركي الرسمية' : 'Official Customs Clearance Fee',
-          receiptUrl: 'https://example.com/receipt.jpg'
+          note: isAr ? 'رسوم التخليص الجمركي الرسمية (وصل رقم CUS-4921)' : 'Official Customs Clearance Fee (Receipt #CUS-4921)',
+          receiptUrl: 'https://images.unsplash.com/photo-1621844781423-f327702e861c?auto=format&fit=crop&q=80&w=600'
         },
         {
           id: 'tx-5',
@@ -124,7 +155,7 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
           status: 'COMMITTED',
           createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
           relatedShipmentId: 'SHP-8812',
-          note: isAr ? 'تعويض مالي - نزاع رقم #DSP-0881' : 'Compensation - Dispute #DSP-0881'
+          note: isAr ? 'تعويض مالي فوري - نزاع رقم #DSP-0881' : 'Instant Compensation - Dispute #DSP-0881'
         },
         {
           id: 'tx-3',
@@ -136,12 +167,12 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
           currency: 'USD',
           status: 'COMMITTED',
           createdAt: new Date(Date.now() - 172800000).toISOString(),
-          relatedShipmentId: 'SHP-2024-8891',
-          note: isAr ? 'استرداد عربون - منتج غير متوفر' : 'Deposit Refund - Item Unavailable'
+          relatedShipmentId: 'SHP-2024-7710',
+          note: isAr ? 'استرداد عربون كامل - منتج غير متوفر لدى البائع' : 'Full Deposit Refund - Item out of stock'
         }
       ]);
       setLoadingTx(false);
-    }, 800);
+    }, 500);
   };
 
   const handleDeposit = async () => {
@@ -149,21 +180,23 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
     setIsDepositing(true);
     
     setTimeout(() => {
-      if (paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'INSTANT_TRANSFER') {
-        alert(isAr ? 'تم إرسال طلب الشحن وهو قيد المراجعة من الإدارة.' : 'Top-up request sent and is pending review by admin.');
-      } else if (paymentMethod === 'CASH_OFFICE') {
-        // Handled by UI instructions only
+      if (paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'CLIQ' || paymentMethod === 'BARIDIMOB') {
+        alert(isAr ? 'تم إرسال إشعار الإيداع والوصل بنجاح، ستتم إضافة الرصيد بعد المراجعة السريعة.' : 'Top-up receipt submitted successfully. Balance will be updated after quick verification.');
       } else {
         alert(isAr ? 'تم شحن المحفظة بنجاح.' : 'Wallet topped up successfully.');
       }
       setIsDepositing(false);
-      setDepositAmount(100);
       setUploadingReceipt(false);
-    }, 1500);
+      setReceiptFile(null);
+    }, 1200);
   };
 
   const handleQuickSettle = () => {
-    alert(isAr ? 'تم تسديد المستحقات بنجاح.' : 'Dues settled successfully.');
+    if (availableBalanceUsd < totalPendingAmountUsd) {
+      alert(isAr ? 'رصيدك المتاح غير كافٍ. يرجى شحن المحفظة أولاً.' : 'Insufficient available balance. Please top up your wallet first.');
+      return;
+    }
+    alert(isAr ? `تم تسديد جميع المستحقات المتبقية (${pendingDual.primary}) بنجاح من رصيدك المتاح.` : `Successfully settled all remaining dues (${pendingDual.primary}) from available balance.`);
     setShowQuickSettle(false);
   };
 
@@ -204,62 +237,79 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
             {isAr ? 'المحفظة المالية والفواتير' : 'Wallet & Invoices'}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            {isAr ? 'إدارة أرصدتك، تسديد المستحقات، وعرض الفواتير بوضوح.' : 'Manage balances, settle dues, and view invoices clearly.'}
+            {isAr ? 'إدارة أرصدتك، تسديد المستحقات، وعرض الفواتير والوصولات الرسمية.' : 'Manage balances, settle dues, and inspect verified invoices.'}
           </p>
         </div>
         
         {pendingPayments.length > 0 && (
           <button 
             onClick={() => setShowQuickSettle(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-brand-500/25 animate-pulse"
+            className="flex items-center gap-2 px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-brand-500/25 animate-pulse cursor-pointer"
           >
-            <Sparkles className="w-5 h-5" />
+            <Sparkles className="w-5 h-5 text-brand-200" />
             {isAr ? 'تسديد المستحقات السريع' : 'Quick Settle Dues'}
-            <span className="bg-white/20 px-2 py-0.5 rounded-lg text-sm ml-2">
-              {formatCurrency(totalPendingAmount, 'USD')}
+            <span className="bg-white/20 px-2 py-0.5 rounded-lg text-xs font-mono font-bold mr-1">
+              {pendingDual.primary}
             </span>
           </button>
         )}
       </div>
 
-      {/* Smart Balances Split */}
+      {/* Smart Balances Split (Dual Currency Cards) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Available Balance */}
-        <div className="bg-gradient-to-br from-emerald-900 to-emerald-950 border border-emerald-800 p-6 rounded-3xl shadow-xl relative overflow-hidden text-white">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+        <div className="bg-gradient-to-br from-emerald-900 via-emerald-950 to-slate-950 border border-emerald-800/80 p-6 rounded-3xl shadow-xl relative overflow-hidden text-white">
+          <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-500/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
           <div className="relative z-10">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-emerald-400 font-bold tracking-wide uppercase">{isAr ? 'الرصيد المتاح' : 'Available Balance'}</span>
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-emerald-400 tracking-wider uppercase flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                {isAr ? 'الرصيد المتاح للاستخدام' : 'Available Balance'}
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                {isAr ? 'جاهز للسحب / الاستخدام' : 'Ready to use'}
+              </span>
             </div>
-            <div className="flex items-baseline gap-3">
-              <div className="text-4xl md:text-5xl font-black text-white tracking-tight">
-                {wallet ? formatCurrency(wallet.balance, 'USD') : '$0.00'}
+            <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3">
+              <div className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight">
+                {availableDual.primary}
               </div>
-              {/* Dual Currency Display */}
-              <div className="text-sm font-bold text-emerald-400/80">
-                ≈ {formatCurrency((wallet?.balance || 0) * 0.71, 'JOD')}
+              {/* Dual Currency equivalent */}
+              <div className="text-xs sm:text-sm font-semibold text-emerald-300/80 font-mono">
+                ≈ {availableDual.secondary}
               </div>
             </div>
-            <p className="text-xs text-emerald-500/80 mt-2">
-              {isAr ? 'المبلغ الحر الجاهز للاستخدام في أي وقت.' : 'Free balance ready to use anytime.'}
+            <p className="text-xs text-emerald-400/70 mt-3 flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              {isAr ? 'المبلغ الحر في حسابك للدفع أو إتمام الشحنات الجديدة.' : 'Free balance for direct order creation and quick settlement.'}
             </p>
           </div>
         </div>
 
         {/* Reserved Balance */}
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl relative overflow-hidden text-white">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-slate-700/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+        <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-slate-800 p-6 rounded-3xl shadow-xl relative overflow-hidden text-white">
+          <div className="absolute top-0 right-0 w-36 h-36 bg-amber-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
           <div className="relative z-10">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-slate-400 font-bold tracking-wide uppercase">{isAr ? 'الرصيد المحجوز (ضمان)' : 'Reserved Balance (Escrow)'}</span>
-              <Lock className="w-5 h-5 text-slate-500" />
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-amber-400 tracking-wider uppercase flex items-center gap-1.5">
+                <Lock className="w-4 h-4 text-amber-400" />
+                {isAr ? 'الرصيد المحجوز (ضمان العربون 50%)' : 'Reserved Balance (Escrow)'}
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                {isAr ? 'مجمد حتى اكتمال الشحن' : 'Locked during transit'}
+              </span>
             </div>
-            <div className="text-3xl md:text-4xl font-black text-white tracking-tight">
-              {formatCurrency(reservedBalance, 'USD')}
+            <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3">
+              <div className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight">
+                {reservedDual.primary}
+              </div>
+              {/* Dual Currency equivalent */}
+              <div className="text-xs sm:text-sm font-semibold text-slate-400 font-mono">
+                ≈ {reservedDual.secondary}
+              </div>
             </div>
-            <p className="text-xs text-slate-500 mt-2">
-              {isAr ? 'إجمالي المبالغ المخصومة كعربون للطلبات قيد التنفيذ.' : 'Total amounts locked as deposits for ongoing orders.'}
+            <p className="text-xs text-slate-400 mt-3">
+              {isAr ? 'إجمالي المبالغ المخصومة كـ (عربون 50%) للطلبات الجارية تحت الضمان المالي.' : 'Total escrow deposits held safely for in-progress deliveries.'}
             </p>
           </div>
         </div>
@@ -276,7 +326,9 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
             
             <div className="space-y-5">
               <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">{isAr ? `المبلغ المراد شحنه (${currencySymbol})` : `Top-up Amount (${currencySymbol})`}</label>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">
+                  {isAr ? `المبلغ المراد شحنه (${currencySymbol})` : `Top-up Amount (${currencySymbol})`}
+                </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <span className="text-slate-400 font-bold">{currencySymbol}</span>
@@ -292,26 +344,46 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
               </div>
               
               <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">{isAr ? 'طريقة الدفع (حسب دولتك)' : 'Payment Method (Geo-Targeted)'}</label>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">
+                  {isAr ? 'طريقة الدفع (مخصصة حسب بلدك)' : 'Payment Method (Geo-Targeted)'}
+                </label>
                 <select 
                   value={paymentMethod} 
-                  onChange={(e) => setPaymentMethod(e.target.value)} 
+                  onChange={(e) => {
+                    setPaymentMethod(e.target.value);
+                    setUploadingReceipt(false);
+                    setReceiptFile(null);
+                  }} 
                   className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm text-slate-800 dark:text-white outline-none focus:border-brand-500 transition-all cursor-pointer"
                 >
-                  <option value="CARD">{isAr ? 'البطاقة البنكية (Credit/Debit Card)' : 'Bank Card'}</option>
                   {isJordanian && (
-                    <option value="INSTANT_TRANSFER">{isAr ? 'إي فواتيركم / كليك' : 'eFawateerCom / CliQ'}</option>
+                    <>
+                      <option value="CLIQ">{isAr ? 'كليك (CliQ) - تحويل فوري أردني' : 'CliQ Instant Transfer (Jordan)'}</option>
+                      <option value="CARD">{isAr ? 'البطاقة البنكية (Visa / MasterCard)' : 'Bank Card (Visa / MasterCard)'}</option>
+                      <option value="BANK_TRANSFER">{isAr ? 'حوالة بنكية يدوية (IBAN)' : 'Bank Transfer (IBAN)'}</option>
+                      <option value="CASH_OFFICE">{isAr ? 'إيداع نقدي في مكتب عمان' : 'Cash Deposit at Amman Hub'}</option>
+                    </>
                   )}
                   {isAlgerian && (
-                    <option value="INSTANT_TRANSFER">{isAr ? 'البطاقة الذهبية / بريدي موب' : 'Edahabia / BaridiMob'}</option>
+                    <>
+                      <option value="BARIDIMOB">{isAr ? 'بريدي موب (BaridiMob) / البطاقة الذهبية' : 'BaridiMob / Edahabia (Algeria)'}</option>
+                      <option value="CARD">{isAr ? 'بطاقة بنكية دولية (CIB / Visa)' : 'Bank Card (CIB / Visa)'}</option>
+                      <option value="BANK_TRANSFER">{isAr ? 'حوالة بنكية يدوية (RIB)' : 'Bank Transfer (RIB)'}</option>
+                      <option value="CASH_OFFICE">{isAr ? 'إيداع نقدي في مكتب الجزائر' : 'Cash Deposit at Algiers Hub'}</option>
+                    </>
                   )}
-                  <option value="BANK_TRANSFER">{isAr ? 'حوالة بنكية يدوية' : 'Manual Bank Transfer'}</option>
+                  {!isJordanian && !isAlgerian && (
+                    <>
+                      <option value="CARD">{isAr ? 'البطاقة البنكية (Credit/Debit Card)' : 'Bank Card (Credit/Debit Card)'}</option>
+                      <option value="BANK_TRANSFER">{isAr ? 'حوالة بنكية دولية' : 'International Bank Wire'}</option>
+                    </>
+                  )}
                 </select>
               </div>
 
               {/* Instructions & In-app Receipt Upload */}
               <AnimatePresence>
-                {(paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'INSTANT_TRANSFER' || paymentMethod === 'CASH_OFFICE') && (
+                {(paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'CLIQ' || paymentMethod === 'BARIDIMOB' || paymentMethod === 'CASH_OFFICE') && (
                   <motion.div 
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
@@ -320,35 +392,70 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
                   >
                     <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 mt-2 space-y-3">
                       {paymentMethod === 'CASH_OFFICE' ? (
-                        <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                          {isAr ? 'يرجى زيارة مكتبنا وتزويد الموظف بالرقم التعريفي الخاص بك:' : 'Please visit our office and provide your ID to the agent:'}
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
+                          {isAr ? 'يرجى زيارة مكتبنا وتزويد الموظف بالرقم التعريفي الخاص بك لإيداع المبلغ نقداً:' : 'Please visit our hub office and provide your User ID for instant cash deposit:'}
                           <br/>
-                          <span className="inline-block mt-2 font-mono text-lg font-black text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 px-3 py-1 rounded-lg border border-brand-200 dark:border-brand-800">{currentUser.id}</span>
+                          <span className="inline-block mt-2 font-mono text-base font-black text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 px-3 py-1 rounded-lg border border-brand-200 dark:border-brand-800">
+                            {currentUser.id}
+                          </span>
                           <br/>
-                          <span className="block mt-2 text-xs">{isAr ? 'سيتم شحن رصيدك فور استلام المبلغ نقداً.' : 'Your balance will be topped up instantly upon cash receipt.'}</span>
+                          <span className="block mt-2 text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
+                            {isAr ? '✓ يُشحن الرصيد فوراً عبر جهاز الكاشير في المكتب' : '✓ Top-up is processed immediately by the cashier'}
+                          </span>
                         </p>
                       ) : (
                         <>
-                          <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                            {paymentMethod === 'INSTANT_TRANSFER' && isJordanian && (
-                              <>{isAr ? 'يرجى التحويل عبر كليك (CliQ) إلى المعرف التالي ثم إرفاق الوصل إجبارياً:' : 'Please transfer via CliQ to the following alias and upload receipt (Mandatory):'}<br/><strong className="text-slate-800 dark:text-white block mt-1 text-sm">Alias: THOUESA</strong></>
+                          <div className="text-xs font-medium text-slate-600 dark:text-slate-400 space-y-1">
+                            {paymentMethod === 'CLIQ' && (
+                              <>
+                                <p className="font-bold text-slate-800 dark:text-white">
+                                  {isAr ? 'يرجى التحويل عبر تطبيق بنكك عبر CliQ إلى المعرف:' : 'Transfer via CliQ to alias:'}
+                                </p>
+                                <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-brand-200 dark:border-brand-900/50 font-mono font-bold text-brand-600 dark:text-brand-400 text-center text-sm">
+                                  Alias: THOUESA-PAY
+                                </div>
+                              </>
                             )}
-                            {paymentMethod === 'INSTANT_TRANSFER' && isAlgerian && (
-                              <>{isAr ? 'يرجى التحويل عبر بريدي موب إلى المعرف التالي ثم إرفاق الوصل إجبارياً:' : 'Please transfer via BaridiMob to the following RIP and upload receipt (Mandatory):'}<br/><strong className="text-slate-800 dark:text-white block mt-1 text-sm">RIP: 007999990000000000</strong></>
+                            {paymentMethod === 'BARIDIMOB' && (
+                              <>
+                                <p className="font-bold text-slate-800 dark:text-white">
+                                  {isAr ? 'يرجى التحويل عبر تطبيق BaridiMob إلى رقم الـ RIP:' : 'Transfer via BaridiMob to RIP:'}
+                                </p>
+                                <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-brand-200 dark:border-brand-900/50 font-mono font-bold text-brand-600 dark:text-brand-400 text-center text-xs">
+                                  RIP: 00799999000123456789
+                                </div>
+                              </>
                             )}
                             {paymentMethod === 'BANK_TRANSFER' && (
-                              <>{isAr ? 'يرجى تحويل المبلغ للحساب البنكي التالي ثم إرفاق الوصل إجبارياً:' : 'Please transfer to the following bank account and upload receipt (Mandatory):'}<br/><strong className="text-slate-800 dark:text-white block mt-1">IBAN: JO12 3456 7890 1234 5678 90</strong></>
+                              <>
+                                <p className="font-bold text-slate-800 dark:text-white">
+                                  {isAr ? 'يرجى التحويل للحساب البنكي الرسمي:' : 'Transfer to official bank account:'}
+                                </p>
+                                <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 font-mono font-bold text-slate-700 dark:text-slate-300 text-center text-xs">
+                                  IBAN: JO12 THOU 0000 0001 2345 6789
+                                </div>
+                              </>
                             )}
-                          </p>
+                            <p className="text-[11px] text-amber-600 dark:text-amber-400 pt-1">
+                              {isAr ? '⚠️ إرفاق صورة إشعار التحويل إلزامي للمطابقة الفورية.' : '⚠️ Uploading receipt screenshot is mandatory for fast audit.'}
+                            </p>
+                          </div>
+                          
                           <button 
+                            type="button"
                             onClick={() => {
-                              alert(isAr ? 'تم إرفاق صورة الوصل بنجاح' : 'Receipt uploaded successfully');
+                              setReceiptFile('receipt_img.jpg');
                               setUploadingReceipt(true);
+                              alert(isAr ? 'تم إرفاق صورة إشعار التحويل بنجاح' : 'Receipt uploaded successfully');
                             }}
-                            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-colors ${uploadingReceipt ? 'bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400' : 'bg-white dark:bg-slate-700 border border-dashed border-brand-300 dark:border-brand-600 text-brand-600 dark:text-brand-400 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20'}`}
+                            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                              uploadingReceipt 
+                                ? 'bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400' 
+                                : 'bg-white dark:bg-slate-700 border border-dashed border-brand-300 dark:border-brand-600 text-brand-600 dark:text-brand-400 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20'
+                            }`}
                           >
                             {uploadingReceipt ? (
-                              <><CheckCircle2 className="w-4 h-4" /> {isAr ? 'تم إرفاق الوصل' : 'Receipt Uploaded'}</>
+                              <><CheckCircle2 className="w-4 h-4" /> {isAr ? 'تم إرفاق صورة الوصل' : 'Receipt Attached'}</>
                             ) : (
                               <><Upload className="w-4 h-4" /> {isAr ? 'إرفاق صورة الوصل (إلزامي)' : 'Upload Receipt (Mandatory)'}</>
                             )}
@@ -362,14 +469,18 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
 
               <button 
                 onClick={handleDeposit} 
-                disabled={isDepositing || ((paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'INSTANT_TRANSFER') && !uploadingReceipt) || paymentMethod === 'CASH_OFFICE'} 
-                className={`w-full py-3.5 text-white font-black rounded-xl text-sm transition-all flex items-center justify-center gap-2 ${paymentMethod === 'CASH_OFFICE' ? 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed' : 'bg-brand-600 hover:bg-brand-700 disabled:opacity-50'}`}
+                disabled={isDepositing || ((paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'CLIQ' || paymentMethod === 'BARIDIMOB') && !uploadingReceipt) || paymentMethod === 'CASH_OFFICE'} 
+                className={`w-full py-3.5 text-white font-black rounded-xl text-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  paymentMethod === 'CASH_OFFICE' 
+                    ? 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed opacity-75' 
+                    : 'bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-brand-500/20'
+                }`}
               >
                 {isDepositing ? (
-                  <span className="animate-pulse">{isAr ? 'جاري التنفيذ...' : 'Processing...'}</span>
+                  <span className="animate-pulse">{isAr ? 'جاري التحقق والإرسال...' : 'Verifying & Submitting...'}</span>
                 ) : (
                   <>
-                    {isAr ? 'متابعة الدفع' : 'Proceed to Payment'}
+                    {isAr ? 'تأكيد الشحن' : 'Confirm Top-up'}
                     <ArrowRight className={`w-4 h-4 ${isAr ? 'rotate-180' : ''}`} />
                   </>
                 )}
@@ -600,30 +711,55 @@ export const WalletDashboard: React.FC<WalletDashboardProps> = ({ currentUser, w
               </div>
               <div className="p-4 sm:p-6 space-y-4 max-h-[60vh] overflow-y-auto">
                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                  {isAr ? 'لديك طلبات وصلت وبانتظار دفع النصف المتبقي لإتمام التسليم:' : 'You have arrived orders pending final payment to complete delivery:'}
+                  {isAr ? 'لديك شحنات وصلت إلى وجهتها وبانتظار تسديد الدفعة النهائية والرسوم الجمركية لإتمام التسليم:' : 'You have arrived orders pending final payment and verified customs fees to complete delivery:'}
                 </p>
                 <div className="space-y-3">
-                  {pendingPayments.map(p => (
-                    <div key={p.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                      <div>
-                        <span className="text-sm font-bold block text-slate-800 dark:text-white">Order {p.trackingNumber}</span>
-                        <span className="text-xs text-slate-500">{isAr ? 'الدفعة النهائية' : 'Final Payment'}</span>
+                  {pendingPayments.map(p => {
+                    const remaining50 = (p.declaredValue || 0) * 0.5;
+                    const customs = p.currentStatus === 'CUSTOMS_HELD' ? 25 : 0;
+                    const totalOrderDue = remaining50 + customs;
+                    const dueDual = formatDualCurrency(totalOrderDue);
+                    return (
+                      <div key={p.id} className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <span className="text-xs font-bold block text-slate-800 dark:text-white font-mono">{p.trackingNumber}</span>
+                            <span className="text-[11px] text-slate-500">{isAr ? 'الدفعة النهائية (50%)' : 'Final Installment (50%)'}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-black text-sm text-slate-900 dark:text-white block">{dueDual.primary}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">≈ {dueDual.secondary}</span>
+                          </div>
+                        </div>
+                        {customs > 0 && (
+                          <div className="flex justify-between items-center text-[11px] text-amber-600 dark:text-amber-400 pt-1 border-t border-slate-200 dark:border-slate-700/50">
+                            <span>{isAr ? '+ رسوم جمركية رسمية موثقة' : '+ Official Customs Duty'}</span>
+                            <span className="font-bold">{formatDualCurrency(customs).primary}</span>
+                          </div>
+                        )}
                       </div>
-                      <span className="font-bold text-slate-900 dark:text-white">{formatCurrency((p.declaredValue || 0) * 0.5, 'USD')}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                  <span className="font-bold text-slate-600 dark:text-slate-400">{isAr ? 'الإجمالي المطلوب:' : 'Total Required:'}</span>
-                  <span className="text-2xl font-black text-brand-600 dark:text-brand-400">{formatCurrency(totalPendingAmount, 'USD')}</span>
+                  <div>
+                    <span className="font-bold text-xs text-slate-500 dark:text-slate-400 block">{isAr ? 'الإجمالي المطلوب دفعه:' : 'Total Payable:'}</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                      {isAr ? `رصيدك المتاح: ${availableDual.primary}` : `Available Balance: ${availableDual.primary}`}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-2xl font-black text-brand-600 dark:text-brand-400 block">{pendingDual.primary}</span>
+                    <span className="text-xs text-slate-400 font-mono">≈ {pendingDual.secondary}</span>
+                  </div>
                 </div>
               </div>
               <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
                 <button
                   onClick={handleQuickSettle}
-                  className="w-full py-3.5 bg-brand-600 hover:bg-brand-700 text-white font-black rounded-xl text-sm transition-all"
+                  className="w-full py-3.5 bg-brand-600 hover:bg-brand-700 text-white font-black rounded-xl text-sm transition-all shadow-lg shadow-brand-500/20 cursor-pointer"
                 >
-                  {isAr ? 'دفع من المحفظة المتاحة' : 'Pay from Available Balance'}
+                  {isAr ? 'تأكيد التسديد من الرصيد المتاح' : 'Confirm Payment from Available Balance'}
                 </button>
               </div>
             </motion.div>

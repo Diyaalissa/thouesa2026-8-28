@@ -429,10 +429,139 @@ class DataStore {
       updatedAt: new Date(Date.now() - 2 * 3600000).toISOString(),
     };
 
+    // 4.2 Seed Shipment at Customs Clearance with verified customs receipt
+    const ship5: Shipment = {
+      id: 'ship-105',
+      trackingNumber: 'TH-BUY-USA-ALG-7731',
+      serviceType: 'INTERNATIONAL_BUY',
+      senderId: 'usr-sender-101',
+      senderName: 'طارق الهاشمي',
+      senderPhone: '+962 79 123 4567',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'كريم بلعباس (Karim Belabbes)',
+      recipientPhone: '+213 55 889 0011',
+      recipientAddress: 'الجزائر العاصمة، القبة، شارع القدس',
+      itemCategory: 'ELECTRONICS',
+      itemDescription: 'كاميرا احترافية Sony Alpha A7 IV وعدسة سينمائية 24-70mm',
+      orderItems: [
+        {
+          id: 'item-105-1',
+          name: 'Sony Alpha 7 IV Full-frame Mirrorless Camera',
+          quantity: 1,
+          unitPrice: 850.0,
+          totalCost: 850.0,
+          notes: 'Amazon Prime Order',
+        }
+      ],
+      itemPhotos: [
+        'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&auto=format&fit=crop&q=80',
+      ],
+      declaredValue: 850.0,
+      currency: 'USD',
+      estimatedWeightKg: 2.4,
+      actualWeightKg: 2.45,
+      dimensionsCm: { length: 32, width: 24, height: 16 },
+      securitySealId: 'SEAL-ALG-55019',
+      shippingCost: 45.0,
+      customsDutyEstimated: 35.0,
+      escrowDepositRequired: 850.0,
+      currentStatus: 'CUSTOMS_CLEARANCE',
+      senderLegalWaiverSigned: true,
+      senderLegalWaiverTimestamp: new Date(Date.now() - 40 * 3600000).toISOString(),
+      customsDutyRecord: {
+        id: 'cus-rec-7731',
+        shipmentId: 'ship-105',
+        dutyAmountPaid: 35.0,
+        dutyCurrency: 'USD',
+        receiptPhotoUrl: 'https://images.unsplash.com/photo-1621844781423-f327702e861c?auto=format&fit=crop&q=80&w=600',
+        receiptNumber: 'DZ-DGD-2026-99042',
+        recordedAt: new Date(Date.now() - 4 * 3600000).toISOString(),
+        customsLocationAr: 'مفتشية الجمارك - مطار هواري بومدين الدولي',
+        customsLocationEn: 'Customs Inspectorate - Houari Boumediene Airport',
+        notes: 'تم سداد الرسوم الجمركية الرسمية واستلام إشعار الإفراج الجمركي.',
+        verificationStatus: 'VERIFIED_REIMBURSED',
+      },
+      idempotencyKey: 'idemp-ship-105-seed',
+      createdAt: new Date(Date.now() - 40 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 4 * 3600000).toISOString(),
+    };
+
+    // 4.3 Seed Completed & Delivered Shipment
+    const ship6: Shipment = {
+      id: 'ship-106',
+      trackingNumber: 'TH-JOR-ALG-202607-1102',
+      serviceType: 'SEND_PARCEL',
+      senderId: 'usr-sender-101',
+      senderName: 'طارق الهاشمي',
+      senderPhone: '+962 79 123 4567',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'ياسين بن مهيدي (Yassine Ben M\'hidi)',
+      recipientPhone: '+213 77 112 3344',
+      recipientAddress: 'الجزائر العاصمة، ديدوش مراد',
+      itemCategory: 'DOCUMENTS',
+      itemDescription: 'شهادات دراسات عليا ووثائق رسمية مصدقة ومغلفة',
+      itemPhotos: [
+        'https://images.unsplash.com/photo-1568667256549-094345857637?w=400&auto=format&fit=crop&q=80',
+      ],
+      declaredValue: 120.0,
+      currency: 'USD',
+      estimatedWeightKg: 0.5,
+      actualWeightKg: 0.5,
+      dimensionsCm: { length: 30, width: 22, height: 2 },
+      securitySealId: 'SEAL-AMM-11020',
+      shippingCost: 20.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 120.0,
+      currentStatus: 'DELIVERED',
+      deliveredAt: new Date(Date.now() - 72 * 3600000).toISOString(),
+      senderLegalWaiverSigned: true,
+      senderLegalWaiverTimestamp: new Date(Date.now() - 96 * 3600000).toISOString(),
+      idempotencyKey: 'idemp-ship-106-seed',
+      createdAt: new Date(Date.now() - 96 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 72 * 3600000).toISOString(),
+    };
+
+    // 4.4 Seed Cancelled Shipment
+    const ship7: Shipment = {
+      id: 'ship-107',
+      trackingNumber: 'TH-JOR-ALG-202607-0094',
+      serviceType: 'SPECIFIC_COUNTRY_BUY',
+      senderId: 'usr-sender-101',
+      senderName: 'طارق الهاشمي',
+      senderPhone: '+962 79 123 4567',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'منى القادري',
+      recipientPhone: '+213 55 990 1122',
+      recipientAddress: 'عنابة، الكورنيش',
+      itemCategory: 'GIFTS_COSMETICS',
+      itemDescription: 'عطور شرقية تم إلغاء طلبها لعدم توفر المنتج بالمحل',
+      itemPhotos: [
+        'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&auto=format&fit=crop&q=80',
+      ],
+      declaredValue: 90.0,
+      currency: 'USD',
+      estimatedWeightKg: 1.0,
+      dimensionsCm: { length: 20, width: 15, height: 10 },
+      shippingCost: 18.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 90.0,
+      currentStatus: 'CANCELLED',
+      senderLegalWaiverSigned: true,
+      idempotencyKey: 'idemp-ship-107-seed',
+      createdAt: new Date(Date.now() - 120 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 110 * 3600000).toISOString(),
+    };
+
     this.shipments.set(ship1.id, ship1);
     this.shipments.set(ship2.id, ship2);
     this.shipments.set(ship3.id, ship3);
     this.shipments.set(ship4.id, ship4);
+    this.shipments.set(ship5.id, ship5);
+    this.shipments.set(ship6.id, ship6);
+    this.shipments.set(ship7.id, ship7);
 
     // 5. Seed Manifest
     const manifest1: Manifest = {
