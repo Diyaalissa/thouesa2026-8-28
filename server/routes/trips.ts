@@ -70,12 +70,15 @@ tripsRouter.post('/', (req: Request, res: Response) => {
   // Initial required escrow deposit estimated at 50$ per kg (or exact package declared value upon assignment)
   const requiredDeposit = Number((weight * 35.0).toFixed(2));
 
+  const user = db.users.get(travelerId);
+  const priorityTier = user?.priorityLevel === 'GOLD' ? 'GOLD' : (user?.priorityLevel === 'SILVER' ? 'SILVER' : 'STANDARD');
+
   const newTrip: Trip = {
     id: `trip-${Date.now()}`,
     travelerId,
     travelerName: travelerName || 'Traveler',
     travelerPhone: travelerPhone || '+962 79 000 0000',
-    travelerRating: 4.95,
+    travelerRating: user?.rating || 4.95,
     originHubId,
     destinationHubId,
     airline: airline || 'Middle East Airlines',
@@ -89,8 +92,10 @@ tripsRouter.post('/', (req: Request, res: Response) => {
     totalEarningsEstimated: estimatedEarnings,
     requiredEscrowDeposit: requiredDeposit,
     isEscrowPaid: false,
-    status: 'VERIFIED', // Auto-verified in prototype simulation
+    status: 'SCHEDULED',
     ticketDocUrl: ticketDocUrl || '/docs/tickets/sample-ticket.pdf',
+    priorityTier,
+    legalCommitmentSigned: true,
     createdAt: new Date().toISOString(),
   };
 
@@ -585,3 +590,115 @@ tripsRouter.post('/:id/documents', (req: Request, res: Response) => {
 
   res.json({ success: true, trip, message: 'Document uploaded successfully' });
 });
+
+// Pre-Flight Digital Check-in Protocol (48h Confirmation)
+tripsRouter.post('/:id/check-in', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const trip = db.trips.get(id);
+
+  if (!trip) {
+    return res.status(404).json({ success: false, error: 'الرحلة غير موجودة / Trip not found' });
+  }
+
+  if (trip.status === 'CANCELLED' || trip.status === 'COMPLETED') {
+    return res.status(400).json({
+      success: false,
+      error: 'لا يمكن تأكيد رحلة ملغاة أو مكتملة / Cannot check-in for cancelled or completed flight',
+    });
+  }
+
+  trip.checkedInAt = new Date().toISOString();
+  if (trip.status === 'SCHEDULED' || trip.status === 'VERIFIED') {
+    trip.status = 'CHECKED_IN';
+  }
+  db.trips.set(trip.id, trip);
+
+  db.logAudit({
+    actorId: trip.travelerId,
+    actorName: trip.travelerName,
+    actorRole: 'TRAVELER',
+    domain: 'Capacity',
+    action: 'PRE_FLIGHT_CHECK_IN',
+    resourceType: 'Trip',
+    resourceId: trip.id,
+    details: {
+      flightNumber: trip.flightNumber,
+      pnrCode: trip.pnrCode,
+      checkedInAt: trip.checkedInAt,
+    },
+  });
+
+  const checkInNotif = db.pushNotification({
+    type: 'SYSTEM_ALERT',
+    titleAr: 'تأكيد السفر الرقمي (Pre-Flight Check-in)',
+    titleEn: 'Digital Check-in Confirmed',
+    messageAr: `أكّد المسافر ${trip.travelerName} استعداده للسفر بالرحلة ${trip.flightNumber} عبر Check-in. تم تثبيت موعد التوجه لمركز المغادرة.`,
+    messageEn: `Traveler ${trip.travelerName} completed pre-flight check-in for flight ${trip.flightNumber}. Ready for dispatch.`,
+    targetRole: 'MASTER_ADMIN',
+    referenceId: trip.id,
+    priority: 'HIGH',
+  });
+  broadcastNotification(checkInNotif);
+
+  res.json({
+    success: true,
+    message: 'تم تأكيد جاهزية السفر رقمياً (Check-in Confirmed). يرجى التوجه لمركز المغادرة لتسليم الضمان واستلام الطرود.',
+    trip,
+  });
+});
+
+// Emergency Cancellation Request (When packages are already linked)
+tripsRouter.post('/:id/emergency-cancel-request', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+
+  if (!reason || reason.trim().length < 15) {
+    return res.status(400).json({
+      success: false,
+      error: 'يرجى تقديم سبب تفصيلي لطلب الإلغاء الطارئ (15 حرفاً على الأقل) / Detailed reason required (min 15 chars)',
+    });
+  }
+
+  const trip = db.trips.get(id);
+  if (!trip) {
+    return res.status(404).json({ success: false, error: 'Trip not found' });
+  }
+
+  trip.emergencyCancelRequested = true;
+  trip.emergencyReason = reason;
+  db.trips.set(trip.id, trip);
+
+  db.logAudit({
+    actorId: trip.travelerId,
+    actorName: trip.travelerName,
+    actorRole: 'TRAVELER',
+    domain: 'Logistics',
+    action: 'EMERGENCY_CANCEL_REQUEST',
+    resourceType: 'Trip',
+    resourceId: trip.id,
+    details: {
+      reason,
+      allocatedWeightKg: trip.allocatedWeightKg,
+      flightNumber: trip.flightNumber,
+    },
+  });
+
+  const alertNotif = db.pushNotification({
+    type: 'SYSTEM_ALERT',
+    titleAr: '⚠️ طلب إلغاء طارئ لرحلة مسافر',
+    titleEn: '⚠️ Emergency Flight Cancellation Request',
+    messageAr: `قدّم المسافر ${trip.travelerName} طلب إلغاء طارئ للرحلة ${trip.flightNumber}. السبب: "${reason}". يلزم مراجعة الإدارة لإعادة جدولة الطرود.`,
+    messageEn: `Traveler ${trip.travelerName} requested emergency cancellation for flight ${trip.flightNumber}. Reason: "${reason}".`,
+    targetRole: 'MASTER_ADMIN',
+    referenceId: trip.id,
+    priority: 'HIGH',
+  });
+  broadcastNotification(alertNotif);
+
+  res.json({
+    success: true,
+    message: 'تم إرسال طلب الإلغاء الطارئ لإدارة العمليات بنجاح. سيتم مراجعة الطلب وفك حجز الضمان وإعادة توزيع الطرود.',
+    trip,
+  });
+});
+

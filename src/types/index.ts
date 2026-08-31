@@ -47,6 +47,7 @@ export interface User {
   phone: string;
   address?: string;
   role: UserRole;
+  priorityLevel?: 'NEW' | 'SILVER' | 'GOLD';
   kycStatus: KYCStatus;
   isActive: boolean;
   preferredLocale: Locale;
@@ -132,6 +133,21 @@ export type ItemCategory =
   | 'FOOD_COMMERCIAL_PACKED'
   | 'OTHER_SAFE_GOODS';
 
+export interface CustomsDutyRecord {
+  id: string;
+  shipmentId: string;
+  dutyAmountPaid: number;
+  dutyCurrency: Currency | 'DZD' | 'JOD' | 'USD';
+  receiptPhotoUrl: string;
+  receiptNumber?: string;
+  recordedAt: string;
+  customsLocationAr?: string;
+  customsLocationEn?: string;
+  notes?: string;
+  verificationStatus: 'PENDING_HUB_VERIFICATION' | 'VERIFIED_REIMBURSED' | 'REJECTED';
+  reimbursedAt?: string;
+}
+
 export interface Shipment {
   id: string;
   trackingNumber: string; // e.g., TH-JOR-ALG-202608-8841
@@ -197,22 +213,27 @@ export interface Shipment {
   };
   deliveryProofSignature?: string;
   deliveredAt?: string;
+  customsDutyRecord?: CustomsDutyRecord;
   createdAt: string;
   updatedAt: string;
 }
 
 export type TripStatus =
+  | 'SCHEDULED'
+  | 'CHECKED_IN'
+  | 'PACKAGES_LINKED'
+  | 'ESCROW_LOCKED'
+  | 'IN_TRANSIT'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'EMERGENCY_UNASSIGNED'
   | 'SUBMITTED'
   | 'VERIFIED'
-  | 'ESCROW_LOCKED'
   | 'ESCROW_PAID'
   | 'DISPATCHED'
   | 'IN_FLIGHT'
   | 'ARRIVED'
-  | 'COMPLETED'
-  | 'CANCELLED'
-  | 'DELAYED'
-  | 'EMERGENCY_UNASSIGNED';
+  | 'DELAYED';
 
 export interface Trip {
   id: string;
@@ -238,6 +259,10 @@ export interface Trip {
   documents?: Record<string, { url: string; fileName: string; uploadedAt: string }>;
   manifestId?: string;
   emergencyReason?: string;
+  emergencyCancelRequested?: boolean;
+  checkedInAt?: string;
+  priorityTier?: 'STANDARD' | 'SILVER' | 'GOLD';
+  legalCommitmentSigned?: boolean;
   createdAt: string;
 }
 
