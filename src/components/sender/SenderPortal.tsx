@@ -632,9 +632,18 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                 currentUser={currentUser} 
                 walletBalance={wallet?.balance || 0}
                 activeShipmentsCount={(shipments || []).filter(s => s?.currentStatus !== 'DELIVERED' && s?.currentStatus !== 'CANCELLED').length}
-                onNavigate={(tab) => setActiveTab(tab as any)}
+                onNavigate={(tab, extraData) => {
+                  if (extraData?.prefillQuote) {
+                    if (extraData.prefillQuote.originHubId) setOriginHubId(extraData.prefillQuote.originHubId);
+                    if (extraData.prefillQuote.destHubId) setDestHubId(extraData.prefillQuote.destHubId);
+                    if (extraData.prefillQuote.weightKg) setParcelEstimatedWeightKg(extraData.prefillQuote.weightKg);
+                  }
+                  setActiveTab(tab as any);
+                }}
                 isAr={isAr}
                 shipments={shipments}
+                locale={locale}
+                onRefreshData={onRefreshShipments}
               />
             )}
 
@@ -669,8 +678,11 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
           activeHubs={activeHubs}
           onSubmitShipment={handleSendParcelSubmit}
           isSubmitting={isSubmitting}
+          onBack={() => setActiveTab('OVERVIEW')}
         />
-      )}      {/* 3. OPTION 2: BUY FROM INTERNATIONAL STORES */}
+      )}
+
+      {/* 3. OPTION 2: BUY FROM INTERNATIONAL STORES */}
       {activeTab === 'INTERNATIONAL_BUY' && (
         <Option2InternationalBuy
           isAr={isAr}
@@ -678,16 +690,18 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
           activeHubs={activeHubs}
           onSubmitOrder={handleStoreBuySubmit}
           isSubmitting={isSubmitting}
+          onBack={() => setActiveTab('OVERVIEW')}
         />
       )}
 
-{/* 4. OPTION 3: BUY FROM SPECIFIC COUNTRY & SHIP */}
+      {/* 4. OPTION 3: BUY FROM SPECIFIC COUNTRY & SHIP */}
       {activeTab === 'SPECIFIC_COUNTRY_BUY' && (
         <Option3SpecificCountryBuy
           isAr={isAr}
           currentUser={currentUser}
           onSubmitOrder={handleCountryBuyOrderSubmit}
           isSubmitting={isSubmitting}
+          onBack={() => setActiveTab('OVERVIEW')}
         />
       )}
 

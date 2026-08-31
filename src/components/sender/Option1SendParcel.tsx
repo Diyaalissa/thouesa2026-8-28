@@ -30,6 +30,7 @@ interface Option1SendParcelProps {
   activeHubs: Hub[];
   onSubmitShipment: (shipmentData: any) => Promise<void>;
   isSubmitting: boolean;
+  onBack?: () => void;
 }
 
 export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
@@ -37,10 +38,12 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
   currentUser,
   activeHubs,
   onSubmitShipment,
-  isSubmitting
+  isSubmitting,
+  onBack
 }) => {
   // Wizard Step for Mobile (1 to 4)
   const [wizardStep, setWizardStep] = useState<number>(1);
+  const [formValidationError, setFormValidationError] = useState<string | null>(null);
 
   // 1. Parcel Core Specifications
   const [parcelCategory, setParcelCategory] = useState<string>('CLOTHING');
@@ -137,12 +140,13 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormValidationError(null);
     if (!prohibitedAgreed) {
-      alert(isAr ? 'يرجى الإقرار بعدم احتواء الطرد على أي مواد ممنوعة قانونياً للمتابعة.' : 'Please acknowledge that the parcel contains no prohibited items to proceed.');
+      setFormValidationError(isAr ? 'يرجى الإقرار بعدم احتواء الطرد على أي مواد ممنوعة قانونياً للمتابعة.' : 'Please acknowledge that the parcel contains no prohibited items to proceed.');
       return;
     }
     if (!customsAgreed) {
-      alert(isAr ? 'يرجى الموافقة على التنبيه الجمركي الإلزامي للمتابعة.' : 'Please acknowledge the customs disclaimer to proceed.');
+      setFormValidationError(isAr ? 'يرجى الموافقة على التنبيه الجمركي الإلزامي للمتابعة.' : 'Please acknowledge the customs disclaimer to proceed.');
       return;
     }
 
@@ -198,7 +202,17 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
         
         {/* Header Banner */}
         <div className="border-b border-slate-800 pb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
+          <div className="flex items-center gap-3">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-2xl transition-colors cursor-pointer shrink-0"
+                title={isAr ? 'العودة للرئيسية' : 'Back to Home'}
+              >
+                {isAr ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+              </button>
+            )}
             <div className="flex items-center gap-3">
               <div className="p-3 bg-brand-500/10 border border-brand-500/30 rounded-2xl text-brand-400">
                 <Package className="w-6 h-6" />
@@ -223,6 +237,13 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
             </span>
           </div>
         </div>
+
+        {formValidationError && (
+          <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-400 text-sm flex items-center gap-3 animate-in fade-in">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <span>{formValidationError}</span>
+          </div>
+        )}
 
         {/* Mobile Progress Bar (Visible only on mobile) */}
         <div className="md:hidden bg-slate-950 p-4 rounded-2xl border border-slate-800">

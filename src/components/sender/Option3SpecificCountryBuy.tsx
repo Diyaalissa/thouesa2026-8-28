@@ -23,13 +23,15 @@ interface Option3SpecificCountryBuyProps {
   currentUser: any;
   onSubmitOrder: (orderData: any) => Promise<void>;
   isSubmitting: boolean;
+  onBack?: () => void;
 }
 
 export const Option3SpecificCountryBuy: React.FC<Option3SpecificCountryBuyProps> = ({
   isAr,
   currentUser,
   onSubmitOrder,
-  isSubmitting
+  isSubmitting,
+  onBack
 }) => {
   // Wizard Step for Mobile (1 to 5)
   const [wizardStep, setWizardStep] = useState<number>(1);
@@ -135,7 +137,17 @@ export const Option3SpecificCountryBuy: React.FC<Option3SpecificCountryBuyProps>
       
       {/* Header Banner */}
       <div className="border-b border-slate-800 pb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-2xl transition-colors cursor-pointer shrink-0"
+              title={isAr ? 'العودة للرئيسية' : 'Back to Home'}
+            >
+              {isAr ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+            </button>
+          )}
           <div className="flex items-center gap-3">
             <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-400">
               <ShoppingBag className="w-6 h-6" />

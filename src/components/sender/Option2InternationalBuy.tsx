@@ -35,6 +35,7 @@ interface Option2InternationalBuyProps {
   activeHubs: Hub[];
   onSubmitOrder: (orderPayload: any) => Promise<void>;
   isSubmitting: boolean;
+  onBack?: () => void;
 }
 
 interface StoreItemDraft {
@@ -158,7 +159,8 @@ export const Option2InternationalBuy: React.FC<Option2InternationalBuyProps> = (
   currentUser,
   activeHubs,
   onSubmitOrder,
-  isSubmitting
+  isSubmitting,
+  onBack
 }) => {
   // Mobile Wizard Steps (1 to 4)
   const [wizardStep, setWizardStep] = useState<number>(1);
@@ -370,6 +372,16 @@ export const Option2InternationalBuy: React.FC<Option2InternationalBuyProps> = (
       <div className="border-b border-slate-800 pb-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-2xl transition-colors cursor-pointer shrink-0"
+                title={isAr ? 'العودة للرئيسية' : 'Back to Home'}
+              >
+                {isAr ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+              </button>
+            )}
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 to-amber-400 p-0.5 shadow-lg shadow-brand-500/20">
               <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center">
                 <Globe2 className="w-6 h-6 text-brand-400" />
