@@ -48,8 +48,8 @@ export const SmartNudgesBanner: React.FC<SmartNudgesBannerProps> = ({
     );
   }
 
-  // Pre-departure state (Scheduled / Pending)
-  if (activeTrip.status === 'SCHEDULED' || activeTrip.status === 'PENDING') {
+  // Pre-departure states (SUBMITTED / VERIFIED / CONFIRMED / PACKAGES_LINKED)
+  if (['SUBMITTED', 'VERIFIED', 'CONFIRMED', 'PACKAGES_LINKED', 'SCHEDULED', 'CHECKED_IN'].includes(activeTrip.status)) {
     return (
       <div 
         className="bg-teal-50 border border-teal-200 rounded-3xl p-4 sm:p-5 flex items-center justify-between gap-4 shadow-2xs"
@@ -65,8 +65,8 @@ export const SmartNudgesBanner: React.FC<SmartNudgesBannerProps> = ({
             </h4>
             <p className="text-xs text-teal-800 mt-0.5 leading-relaxed">
               {isAr
-                ? 'لا تنسَ التوجه لمكتبنا المعتمد غداً لدفع مبلغ الضمان واستلام الطرود وفحص الأمانة قبل موعد إقلاع رحلتك.'
-                : 'Don\'t forget to visit our official branch tomorrow to deposit escrow, receive parcels, and verify custody before flight.'}
+                ? 'يرجى التوجه لفرع المغادرة المعتمد في الموعد المحدد لاستلام الطرود المفحوصة والمختومة وإتمام محضر التسليم قبل موعد إقلاع رحلتك.'
+                : 'Please visit the origin hub on schedule to receive inspected & sealed packages before your flight departure.'}
             </p>
           </div>
         </div>
@@ -84,8 +84,8 @@ export const SmartNudgesBanner: React.FC<SmartNudgesBannerProps> = ({
     );
   }
 
-  // In-transit / Arrived state
-  if (activeTrip.status === 'IN_TRANSIT' || activeTrip.status === 'ARRIVED') {
+  // In-transit / Dispatched / Arrived state
+  if (['DISPATCHED', 'IN_TRANSIT', 'IN_FLIGHT', 'ARRIVED'].includes(activeTrip.status)) {
     return (
       <div 
         className="bg-emerald-50 border border-emerald-200 rounded-3xl p-4 sm:p-5 flex items-center justify-between gap-4 shadow-2xs animate-in fade-in"
@@ -101,8 +101,8 @@ export const SmartNudgesBanner: React.FC<SmartNudgesBannerProps> = ({
             </h4>
             <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
               {isAr
-                ? 'الحمد لله على سلامة الوصول! يرجى التوجه لمكتب الوصول لتسليم الطرود المشفرة وتحرير أرباحك ومبلغ الضمان فوراً في محفظتك.'
-                : 'Welcome safely! Please head to the destination hub to handover custody and immediately unlock your earnings & escrow deposit.'}
+                ? 'الحمد لله على سلامة الوصول! يرجى التوجه لفرع الوصول لتسليم الطرود المشفرة وتحرير أرباحك فوراً في محفظتك.'
+                : 'Welcome safely! Please head to the destination hub to handover custody and immediately unlock your earnings.'}
             </p>
           </div>
         </div>

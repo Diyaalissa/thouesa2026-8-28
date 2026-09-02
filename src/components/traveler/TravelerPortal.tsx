@@ -158,7 +158,7 @@ export const TravelerPortal: React.FC<TravelerPortalProps> = ({
   }, []);
   
   // Context-aware FAB logic
-  const activeTrip = trips.find(t => t.status === 'SCHEDULED' || t.status === 'IN_TRANSIT');
+  const activeTrip = trips.find(t => ['SUBMITTED', 'VERIFIED', 'CONFIRMED', 'PACKAGES_LINKED', 'DISPATCHED', 'SCHEDULED', 'CHECKED_IN', 'IN_TRANSIT', 'IN_FLIGHT', 'ARRIVED'].includes(t.status));
   const hasTripToday = !!activeTrip; // Simplified check for UX Demo
 
   const [tripToEdit, setTripToEdit] = useState<Trip | null>(null);
@@ -529,7 +529,7 @@ export const TravelerPortal: React.FC<TravelerPortalProps> = ({
 
                     {/* TAB: MY BAG */}
           {activeTab === 'MY_BAG' && (() => {
-            let activeTrip = travelerTrips.find(t => ['SCHEDULED', 'PENDING', 'PACKAGES_LINKED', 'ESCROW_LOCKED', 'IN_TRANSIT'].includes(t.status));
+            let activeTrip = travelerTrips.find(t => ['SUBMITTED', 'VERIFIED', 'CONFIRMED', 'PACKAGES_LINKED', 'DISPATCHED', 'SCHEDULED', 'CHECKED_IN', 'IN_TRANSIT', 'IN_FLIGHT', 'ARRIVED'].includes(t.status));
             if (!activeTrip && travelerTrips.length > 0) {
               activeTrip = travelerTrips[0];
             }

@@ -90,22 +90,28 @@ export type ShipmentStatus =
   | 'DRAFT'
   | 'PENDING'
   | 'PENDING_REVIEW'
-  | 'PENDING_HUB_DROPOFF'
   | 'PENDING_DROPOFF'
+  | 'PENDING_HUB_DROPOFF'
   | 'RECEIVED_AT_ORIGIN'
+  | 'RECEIVED_AT_ORIGIN_HUB'
   | 'INSPECTED_SEALED'
   | 'INSPECTED_AND_SEALED'
   | 'WEIGHT_ADJUSTMENT_PENDING'
   | 'WEIGHT_DISCREPANCY_PENDING'
   | 'ASSIGNED_TO_TRIP'
+  | 'ASSIGNED_TO_TRAVELER'
   | 'IN_TRANSIT'
+  | 'IN_TRANSIT_AIR'
+  | 'IN_FLIGHT'
   | 'CUSTOMS_CLEARANCE'
   | 'CUSTOMS_HELD'
   | 'RECEIVED_AT_DEST'
+  | 'RECEIVED_AT_DEST_HUB'
   | 'READY_FOR_PICKUP'
   | 'READY_FOR_DELIVERY'
   | 'OUT_FOR_DELIVERY'
   | 'DELIVERED'
+  | 'COMPLETED'
   | 'REJECTED_PROHIBITED'
   | 'DISPUTED'
   | 'CANCELLED';
@@ -199,6 +205,9 @@ export interface Shipment {
   paymentMethod?: 'BARIDIMOB' | 'EDAHABIA' | 'CLIQ' | 'EFAWATEERCOM' | 'WALLET' | 'CARD';
   paymentLocalAmount?: number;
   paymentCurrency?: Currency;
+  paymentStatus?: 'PENDING_PAYMENT' | 'DEPOSIT_PAID' | 'FULLY_PAID' | 'REFUNDED';
+  preferredDispatchOptionId?: string;
+  preferredDepartureDate?: string;
   assignedTripId?: string;
   assignedTravelerId?: string;
   assignedTravelerName?: string;
@@ -223,21 +232,23 @@ export interface Shipment {
 }
 
 export type TripStatus =
-  | 'SCHEDULED'
-  | 'CHECKED_IN'
-  | 'PACKAGES_LINKED'
-  | 'ESCROW_LOCKED'
-  | 'IN_TRANSIT'
-  | 'COMPLETED'
-  | 'CANCELLED'
-  | 'EMERGENCY_UNASSIGNED'
   | 'SUBMITTED'
   | 'VERIFIED'
-  | 'ESCROW_PAID'
+  | 'CONFIRMED'
+  | 'PACKAGES_LINKED'
   | 'DISPATCHED'
-  | 'IN_FLIGHT'
   | 'ARRIVED'
-  | 'DELAYED';
+  | 'COMPLETED'
+  | 'DELAYED'
+  | 'REJECTED'
+  | 'CANCELLED'
+  | 'EMERGENCY_UNASSIGNED'
+  | 'SCHEDULED'
+  | 'CHECKED_IN'
+  | 'ESCROW_LOCKED'
+  | 'ESCROW_PAID'
+  | 'IN_TRANSIT'
+  | 'IN_FLIGHT';
 
 export interface Trip {
   id: string;

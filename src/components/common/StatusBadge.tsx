@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShipmentStatus, TripStatus, UserRole, KYCStatus } from '../../types';
-import { ShieldCheck, Clock, CheckCircle2, AlertTriangle, XCircle, Plane, Box, Lock } from 'lucide-react';
+import { ShieldCheck, Clock, CheckCircle2, AlertTriangle, XCircle, Plane, Box, Lock, UserCheck } from 'lucide-react';
+import { CUSTOMER_SHIPMENT_STATUS_LABELS, TRAVELER_TRIP_STATUS_LABELS } from '../../lib/constants';
 
 interface StatusBadgeProps {
   status: ShipmentStatus | TripStatus | KYCStatus | UserRole | string;
@@ -19,128 +20,83 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, locale = 'ar',
     lg: 'text-sm px-3 py-1.5 gap-2 font-medium',
   }[size];
 
-  switch (status) {
-    case 'SCHEDULED':
-      label = locale === 'ar' ? 'مجدولة - بانتظار التأكيد' : 'Scheduled';
-      colorClasses = 'bg-blue-50 text-blue-800 border-blue-300';
-      Icon = Clock;
-      break;
-    case 'CHECKED_IN':
-      label = locale === 'ar' ? 'تم تأكيد السفر' : 'Checked In';
-      colorClasses = 'bg-indigo-50 text-indigo-800 border-indigo-300';
+  // 1. Check if it's a known trip status in TRAVELER_TRIP_STATUS_LABELS
+  if (status in TRAVELER_TRIP_STATUS_LABELS) {
+    const cfg = TRAVELER_TRIP_STATUS_LABELS[status];
+    label = locale === 'ar' ? cfg.labelAr : cfg.labelEn;
+    colorClasses = cfg.badgeClass;
+
+    if (['COMPLETED'].includes(status)) {
       Icon = CheckCircle2;
-      break;
-    case 'PACKAGES_LINKED':
-      label = locale === 'ar' ? 'تم ربط الطرود (توجه للمكتب)' : 'Packages Linked (Go to Hub)';
-      colorClasses = 'bg-amber-100 text-amber-900 border-amber-400 font-bold';
+    } else if (['DISPATCHED', 'IN_TRANSIT', 'IN_FLIGHT', 'ARRIVED'].includes(status)) {
+      Icon = Plane;
+    } else if (['PACKAGES_LINKED'].includes(status)) {
       Icon = Box;
-      break;
-    case 'DRAFT':
-      label = locale === 'ar' ? 'مسودة' : 'Draft';
-      colorClasses = 'bg-slate-100 text-slate-700 border-slate-300';
-      Icon = Clock;
-      break;
-
-    case 'PENDING_DROPOFF':
-      label = locale === 'ar' ? 'بانتظار التسليم للفرع' : 'Pending Hub Drop-off';
-      colorClasses = 'bg-amber-50 text-amber-800 border-amber-300';
-      Icon = Clock;
-      break;
-
-    case 'RECEIVED_AT_ORIGIN':
-      label = locale === 'ar' ? 'مستلم بمركز الانطلاق' : 'Received at Origin Hub';
-      colorClasses = 'bg-brand-50 text-brand-700 border-brand-300';
-      Icon = Box;
-      break;
-
-    case 'INSPECTED_AND_SEALED':
-      label = locale === 'ar' ? 'مفحوص ومختوم أمنياً' : 'Inspected & Tamper-Sealed';
-      colorClasses = 'bg-emerald-50 text-emerald-800 border-emerald-300';
+    } else if (['VERIFIED', 'CONFIRMED', 'CHECKED_IN'].includes(status)) {
       Icon = ShieldCheck;
-      break;
-
-    case 'WEIGHT_DISCREPANCY_PENDING':
-      label = locale === 'ar' ? 'مراجعة فرق الوزن' : 'Weight Discrepancy';
-      colorClasses = 'bg-brand-50 text-brand-800 border-brand-300';
-      Icon = AlertTriangle;
-      break;
-
-    case 'ASSIGNED_TO_TRIP':
-      label = locale === 'ar' ? 'مجدول مع مسافر' : 'Assigned to Traveler';
-      colorClasses = 'bg-brand-50 text-brand-800 border-brand-300';
-      Icon = Plane;
-      break;
-
-    case 'IN_TRANSIT':
-    case 'IN_FLIGHT':
-      label = locale === 'ar' ? 'في مسار الرحلة الجوية' : 'In Flight Transit';
-      colorClasses = 'bg-brand-500 text-white border-brand-600 shadow-xs';
-      Icon = Plane;
-      break;
-
-    case 'RECEIVED_AT_DEST':
-      label = locale === 'ar' ? 'وصل مركز الوجهة' : 'Arrived at Dest Hub';
-      colorClasses = 'bg-teal-50 text-teal-800 border-teal-300';
-      Icon = Box;
-      break;
-
-    case 'READY_FOR_PICKUP':
-      label = locale === 'ar' ? 'جاهز للاستلام' : 'Ready for Pickup';
-      colorClasses = 'bg-emerald-100 text-emerald-900 border-emerald-400';
-      Icon = CheckCircle2;
-      break;
-
-    case 'DELIVERED':
-    case 'COMPLETED':
-      label = locale === 'ar' ? 'تم التسليم بنجاح' : 'Delivered & Completed';
-      colorClasses = 'bg-teal-600 text-white border-emerald-700';
-      Icon = CheckCircle2;
-      break;
-
-    case 'ESCROW_PAID':
-    case 'ESCROW_DEPOSIT_LOCKED':
-      label = locale === 'ar' ? 'الضمان المالي محجوز ومؤمن' : 'Escrow Deposit Locked';
-      colorClasses = 'bg-emerald-50 text-emerald-800 border-emerald-300';
+    } else if (['ESCROW_PAID', 'ESCROW_LOCKED'].includes(status)) {
       Icon = Lock;
-      break;
+    } else if (['DELAYED', 'EMERGENCY_UNASSIGNED', 'SUBMITTED', 'SCHEDULED'].includes(status)) {
+      Icon = Clock;
+    } else if (['CANCELLED', 'REJECTED'].includes(status)) {
+      Icon = XCircle;
+    } else {
+      Icon = Clock;
+    }
 
+    return (
+      <span
+        className={`inline-flex items-center rounded-full border ${sizeClasses} ${colorClasses} tracking-tight whitespace-nowrap transition-colors`}
+      >
+        <Icon className="w-3.5 h-3.5 shrink-0" />
+        <span>{label}</span>
+      </span>
+    );
+  }
+
+  // 2. Check if it's a known shipment status in CUSTOMER_SHIPMENT_STATUS_LABELS
+  if (status in CUSTOMER_SHIPMENT_STATUS_LABELS) {
+    const cfg = CUSTOMER_SHIPMENT_STATUS_LABELS[status];
+    label = locale === 'ar' ? cfg.labelAr : cfg.labelEn;
+    colorClasses = cfg.badgeClass;
+
+    if (['DELIVERED', 'COMPLETED'].includes(status)) {
+      Icon = CheckCircle2;
+    } else if (['IN_TRANSIT', 'IN_TRANSIT_AIR', 'IN_FLIGHT', 'ASSIGNED_TO_TRIP', 'ASSIGNED_TO_TRAVELER'].includes(status)) {
+      Icon = Plane;
+    } else if (['RECEIVED_AT_ORIGIN', 'RECEIVED_AT_ORIGIN_HUB', 'RECEIVED_AT_DEST', 'RECEIVED_AT_DEST_HUB'].includes(status)) {
+      Icon = Box;
+    } else if (['INSPECTED_SEALED', 'INSPECTED_AND_SEALED'].includes(status)) {
+      Icon = ShieldCheck;
+    } else if (['WEIGHT_ADJUSTMENT_PENDING', 'WEIGHT_DISCREPANCY_PENDING', 'CUSTOMS_HELD', 'DISPUTED'].includes(status)) {
+      Icon = AlertTriangle;
+    } else if (['CANCELLED', 'REJECTED_PROHIBITED'].includes(status)) {
+      Icon = XCircle;
+    } else {
+      Icon = Clock;
+    }
+
+    return (
+      <span
+        className={`inline-flex items-center rounded-full border ${sizeClasses} ${colorClasses} tracking-tight whitespace-nowrap transition-colors`}
+      >
+        <Icon className="w-3.5 h-3.5 shrink-0" />
+        <span>{label}</span>
+      </span>
+    );
+  }
+
+  switch (status) {
     case 'VERIFIED':
       label = locale === 'ar' ? 'موثق ومعتمد' : 'Verified';
       colorClasses = 'bg-emerald-50 text-emerald-800 border-emerald-300';
       Icon = ShieldCheck;
       break;
-
-    case 'PENDING':
-      label = locale === 'ar' ? 'قيد المراجعة' : 'Pending Review';
-      colorClasses = 'bg-amber-50 text-amber-800 border-amber-300';
-      Icon = Clock;
-      break;
-
     case 'UNVERIFIED':
       label = locale === 'ar' ? 'غير موثق' : 'Unverified';
       colorClasses = 'bg-slate-100 text-slate-600 border-slate-300';
       Icon = AlertTriangle;
       break;
-
-    case 'DISPUTED':
-      label = locale === 'ar' ? 'محل نزاع وتدقيق' : 'Disputed';
-      colorClasses = 'bg-red-50 text-red-800 border-red-300';
-      Icon = AlertTriangle;
-      break;
-
-    case 'CANCELLED':
-    case 'REJECTED':
-      label = locale === 'ar' ? 'ملغي / مرفوض' : 'Cancelled';
-      colorClasses = 'bg-rose-50 text-rose-800 border-rose-300';
-      Icon = XCircle;
-      break;
-
-    case 'EMERGENCY_UNASSIGNED':
-      label = locale === 'ar' ? 'إلغاء طارئ (معاد للفرع)' : 'Emergency Unassigned';
-      colorClasses = 'bg-purple-50 text-purple-800 border-purple-300';
-      Icon = AlertTriangle;
-      break;
-
     default:
       label = String(status);
   }

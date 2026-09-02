@@ -190,9 +190,9 @@ export const NewTripModal: React.FC<NewTripModalProps> = ({
               <Plane className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-black">{isAr ? 'إضافة وجدولة رحلة طيران جديدة' : 'Register New Flight Trip'}</h2>
+              <h2 className="text-xl font-black">{isAr ? 'تسجيل رحلة طيران جديدة' : 'Register Flight Trip'}</h2>
               <p className="text-xs text-teal-200/80">
-                {isAr ? 'أعلن عن سعتك الشحنية المتاحة واكسب أرباحاً مضمونة مع THOUESA' : 'List your luggage capacity and earn guaranteed income with THOUESA'}
+                {isAr ? 'سجّل بيانات رحلتك وسعتك المتاحة واكسب أرباحاً مضمونة مع THOUESA' : 'Register your flight schedule and available capacity with THOUESA'}
               </p>
             </div>
           </div>

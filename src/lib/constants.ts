@@ -481,3 +481,413 @@ export const DEMO_PROFILES: Record<string, User> = {
   HUB_MANAGER: hubManagerUser,
   MASTER_ADMIN: adminUser,
 };
+
+export interface CustomerStatusConfig {
+  labelAr: string;
+  labelEn: string;
+  badgeClass: string;
+  dotColor: string;
+  descriptionAr: string;
+  descriptionEn: string;
+}
+
+export const CUSTOMER_SHIPMENT_STATUS_LABELS: Record<string, CustomerStatusConfig> = {
+  DRAFT: {
+    labelAr: 'مسودة',
+    labelEn: 'Draft',
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
+    dotColor: 'bg-slate-400',
+    descriptionAr: 'مسودة طلب غير مكتملة',
+    descriptionEn: 'Incomplete order draft',
+  },
+  PENDING: {
+    labelAr: 'قيد المراجعة',
+    labelEn: 'Under Review',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+    dotColor: 'bg-amber-400',
+    descriptionAr: 'طلبك قيد المراجعة والتأكيد',
+    descriptionEn: 'Order under review and confirmation',
+  },
+  PENDING_REVIEW: {
+    labelAr: 'قيد المراجعة',
+    labelEn: 'Under Review',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+    dotColor: 'bg-amber-400',
+    descriptionAr: 'طلبك قيد المراجعة والتأكيد',
+    descriptionEn: 'Order under review and confirmation',
+  },
+  PENDING_DROPOFF: {
+    labelAr: 'بانتظار تسليم الطرد للفرع',
+    labelEn: 'Awaiting Hub Drop-off',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+    dotColor: 'bg-amber-400',
+    descriptionAr: 'يرجى تسليم الطرد إلى فرع ثويسة المعتمد',
+    descriptionEn: 'Please drop off parcel at the designated hub',
+  },
+  PENDING_HUB_DROPOFF: {
+    labelAr: 'بانتظار تسليم الطرد للفرع',
+    labelEn: 'Awaiting Hub Drop-off',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+    dotColor: 'bg-amber-400',
+    descriptionAr: 'يرجى تسليم الطرد إلى فرع ثويسة المعتمد',
+    descriptionEn: 'Please drop off parcel at the designated hub',
+  },
+  RECEIVED_AT_ORIGIN: {
+    labelAr: 'تم استلام الطرد في فرع ثويسة',
+    labelEn: 'Received at Origin Hub',
+    badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
+    dotColor: 'bg-blue-400',
+    descriptionAr: 'تم استلام الطرد في فرع المنشأ وجاري التجهيز',
+    descriptionEn: 'Parcel received at origin branch and being processed',
+  },
+  RECEIVED_AT_ORIGIN_HUB: {
+    labelAr: 'تم استلام الطرد في فرع ثويسة',
+    labelEn: 'Received at Origin Hub',
+    badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
+    dotColor: 'bg-blue-400',
+    descriptionAr: 'تم استلام الطرد في فرع المنشأ وجاري التجهيز',
+    descriptionEn: 'Parcel received at origin branch and being processed',
+  },
+  INSPECTED_SEALED: {
+    labelAr: 'اكتمل فحص وتجهيز الطرد',
+    labelEn: 'Inspected & Sealed',
+    badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    dotColor: 'bg-indigo-400',
+    descriptionAr: 'تم الفحص الأمني ووزن وتغليف وقفل الطرد',
+    descriptionEn: 'Parcel security inspected, weighed and sealed',
+  },
+  INSPECTED_AND_SEALED: {
+    labelAr: 'اكتمل فحص وتجهيز الطرد',
+    labelEn: 'Inspected & Sealed',
+    badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    dotColor: 'bg-indigo-400',
+    descriptionAr: 'تم الفحص الأمني ووزن وتغليف وقفل الطرد',
+    descriptionEn: 'Parcel security inspected, weighed and sealed',
+  },
+  WEIGHT_ADJUSTMENT_PENDING: {
+    labelAr: 'بانتظار موافقة فرق الوزن',
+    labelEn: 'Weight Adjustment Pending',
+    badgeClass: 'bg-orange-50 text-orange-700 border-orange-200',
+    dotColor: 'bg-orange-400',
+    descriptionAr: 'يوجد تعديل في الوزن الفعلي يتطلب موافقتك',
+    descriptionEn: 'Actual weight difference requires your approval',
+  },
+  WEIGHT_DISCREPANCY_PENDING: {
+    labelAr: 'بانتظار موافقة فرق الوزن',
+    labelEn: 'Weight Adjustment Pending',
+    badgeClass: 'bg-orange-50 text-orange-700 border-orange-200',
+    dotColor: 'bg-orange-400',
+    descriptionAr: 'يوجد تعديل في الوزن الفعلي يتطلب موافقتك',
+    descriptionEn: 'Actual weight difference requires your approval',
+  },
+  ASSIGNED_TO_TRIP: {
+    labelAr: 'تم تجهيز الطلب للنقل',
+    labelEn: 'Prepared for Transit',
+    badgeClass: 'bg-sky-50 text-sky-700 border-sky-200',
+    dotColor: 'bg-sky-400',
+    descriptionAr: 'تم ربط الطرد بجدول النقل المعتمد',
+    descriptionEn: 'Parcel assigned to authorized dispatch schedule',
+  },
+  ASSIGNED_TO_TRAVELER: {
+    labelAr: 'تم تجهيز الطلب للنقل',
+    labelEn: 'Prepared for Transit',
+    badgeClass: 'bg-sky-50 text-sky-700 border-sky-200',
+    dotColor: 'bg-sky-400',
+    descriptionAr: 'تم ربط الطرد بجدول النقل المعتمد',
+    descriptionEn: 'Parcel assigned to authorized dispatch schedule',
+  },
+  IN_TRANSIT: {
+    labelAr: 'طلبك في مرحلة النقل',
+    labelEn: 'In Transit',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    dotColor: 'bg-emerald-500',
+    descriptionAr: 'الشحنة في طريقها إلى بلد الوجهة',
+    descriptionEn: 'Shipment is en route to destination country',
+  },
+  IN_TRANSIT_AIR: {
+    labelAr: 'طلبك في مرحلة النقل',
+    labelEn: 'In Transit',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    dotColor: 'bg-emerald-500',
+    descriptionAr: 'الشحنة في طريقها إلى بلد الوجهة',
+    descriptionEn: 'Shipment is en route to destination country',
+  },
+  IN_FLIGHT: {
+    labelAr: 'طلبك في مرحلة النقل',
+    labelEn: 'In Transit',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    dotColor: 'bg-emerald-500',
+    descriptionAr: 'الشحنة في طريقها إلى بلد الوجهة',
+    descriptionEn: 'Shipment is en route to destination country',
+  },
+  CUSTOMS_CLEARANCE: {
+    labelAr: 'التخليص الجمركي بمطار الوجهة',
+    labelEn: 'Customs Clearance',
+    badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
+    dotColor: 'bg-purple-400',
+    descriptionAr: 'الشحنة تخضع للتخليص الجمركي بمطار الوجهة',
+    descriptionEn: 'Undergoing destination customs clearance',
+  },
+  CUSTOMS_HELD: {
+    labelAr: 'ملاحظة جمركية / تدقيق إضافي',
+    labelEn: 'Customs Review',
+    badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
+    dotColor: 'bg-purple-400',
+    descriptionAr: 'الشحنة تخضع للمراجعة الجمركية الإضافية',
+    descriptionEn: 'Customs inspection in progress',
+  },
+  RECEIVED_AT_DEST: {
+    labelAr: 'وصل الطلب إلى فرع الوجهة',
+    labelEn: 'Received at Destination Hub',
+    badgeClass: 'bg-teal-50 text-teal-700 border-teal-200',
+    dotColor: 'bg-teal-400',
+    descriptionAr: 'وصل الطرد إلى فرع ثويسة في مدينة الوصول',
+    descriptionEn: 'Parcel arrived at destination hub',
+  },
+  RECEIVED_AT_DEST_HUB: {
+    labelAr: 'وصل الطلب إلى فرع الوجهة',
+    labelEn: 'Received at Destination Hub',
+    badgeClass: 'bg-teal-50 text-teal-700 border-teal-200',
+    dotColor: 'bg-teal-400',
+    descriptionAr: 'وصل الطرد إلى فرع ثويسة في مدينة الوصول',
+    descriptionEn: 'Parcel arrived at destination hub',
+  },
+  READY_FOR_PICKUP: {
+    labelAr: 'طلبك جاهز للاستلام',
+    labelEn: 'Ready for Pickup',
+    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold',
+    dotColor: 'bg-emerald-500',
+    descriptionAr: 'يمكنك الآن استلام طردك من الفرع',
+    descriptionEn: 'Your parcel is ready for collection',
+  },
+  READY_FOR_DELIVERY: {
+    labelAr: 'طلبك جاهز للاستلام / قيد التوصيل',
+    labelEn: 'Ready for Delivery',
+    badgeClass: 'bg-teal-50 text-teal-700 border-teal-200',
+    dotColor: 'bg-teal-500',
+    descriptionAr: 'الشحنة جاهزة للتسليم أو التوصيل المنزلي',
+    descriptionEn: 'Shipment ready for handover or doorstep delivery',
+  },
+  OUT_FOR_DELIVERY: {
+    labelAr: 'قيد التوصيل للمستلم',
+    labelEn: 'Out for Delivery',
+    badgeClass: 'bg-teal-50 text-teal-700 border-teal-200',
+    dotColor: 'bg-teal-500',
+    descriptionAr: 'مندوب التوصيل في طريقه لتسليم الطرد',
+    descriptionEn: 'Courier is on the way to deliver the package',
+  },
+  DELIVERED: {
+    labelAr: 'تم التسليم بنجاح',
+    labelEn: 'Delivered',
+    badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+    dotColor: 'bg-emerald-600',
+    descriptionAr: 'تم تسليم الشحنة بنجاح للمستلم',
+    descriptionEn: 'Package delivered successfully to recipient',
+  },
+  COMPLETED: {
+    labelAr: 'تم التسليم بنجاح',
+    labelEn: 'Delivered',
+    badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+    dotColor: 'bg-emerald-600',
+    descriptionAr: 'تم تسليم الشحنة بنجاح للمستلم',
+    descriptionEn: 'Package delivered successfully to recipient',
+  },
+  DISPUTED: {
+    labelAr: 'طلب قيد النزاع / المتابعة',
+    labelEn: 'Disputed / Under Review',
+    badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
+    dotColor: 'bg-rose-500',
+    descriptionAr: 'تم تسجيل نزاع وجاري المعالجة والتحقق',
+    descriptionEn: 'Dispute opened and under resolution',
+  },
+  REJECTED_PROHIBITED: {
+    labelAr: 'مرفوض - مواد غير مسموحة',
+    labelEn: 'Rejected - Prohibited Goods',
+    badgeClass: 'bg-red-50 text-red-700 border-red-200',
+    dotColor: 'bg-red-500',
+    descriptionAr: 'تم رفض الشحنة لاحتوائها على مواد محظورة',
+    descriptionEn: 'Shipment rejected due to prohibited items',
+  },
+  CANCELLED: {
+    labelAr: 'ملغي',
+    labelEn: 'Cancelled',
+    badgeClass: 'bg-slate-100 text-slate-600 border-slate-300',
+    dotColor: 'bg-slate-400',
+    descriptionAr: 'تم إلغاء الطلب',
+    descriptionEn: 'Order was cancelled',
+  },
+};
+
+export const getCustomerStatusInfo = (status?: string, isAr: boolean = true) => {
+  const cfg = (status && CUSTOMER_SHIPMENT_STATUS_LABELS[status]) || {
+    labelAr: status || 'قيد المعالجة',
+    labelEn: status || 'Processing',
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
+    dotColor: 'bg-slate-400',
+    descriptionAr: 'جاري متابعة حالة الطلب',
+    descriptionEn: 'Tracking order status',
+  };
+
+  return {
+    label: isAr ? cfg.labelAr : cfg.labelEn,
+    description: isAr ? cfg.descriptionAr : cfg.descriptionEn,
+    badgeClass: cfg.badgeClass,
+    dotColor: cfg.dotColor,
+  };
+};
+
+export const TRAVELER_TRIP_STATUS_LABELS: Record<
+  string,
+  {
+    labelAr: string;
+    labelEn: string;
+    badgeClass: string;
+    dotColor: string;
+    descriptionAr?: string;
+    descriptionEn?: string;
+  }
+> = {
+  SUBMITTED: {
+    labelAr: 'قيد المراجعة والتدقيق',
+    labelEn: 'Under Review',
+    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200 font-medium',
+    dotColor: 'bg-amber-500',
+    descriptionAr: 'تم تسجيل الرحلة وبانتظار مراجعة وتدقيق بيانات التذكرة',
+    descriptionEn: 'Trip registered and pending staff verification',
+  },
+  VERIFIED: {
+    labelAr: 'معتمدة - بانتظار التأكيد',
+    labelEn: 'Verified',
+    badgeClass: 'bg-teal-50 text-teal-800 border-teal-200 font-bold',
+    dotColor: 'bg-teal-500',
+    descriptionAr: 'تم التحقق من تذكرة السفر واعتماد السعة المتاحة بنجاح',
+    descriptionEn: 'Flight ticket and baggage capacity verified by THOUESA',
+  },
+  CONFIRMED: {
+    labelAr: 'تم تأكيد السفر',
+    labelEn: 'Trip Confirmed',
+    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold',
+    dotColor: 'bg-emerald-500',
+    descriptionAr: 'أكّد المسافر جاهزيته للسفر وقرب التوجه لفرع المغادرة',
+    descriptionEn: 'Traveler confirmed readiness for dispatch',
+  },
+  PACKAGES_LINKED: {
+    labelAr: 'تم إسناد الطرود للرحلة',
+    labelEn: 'Packages Linked',
+    badgeClass: 'bg-indigo-50 text-indigo-800 border-indigo-200 font-bold',
+    dotColor: 'bg-indigo-500',
+    descriptionAr: 'تم تخصيص الطرود المناسبة وتجهيز المانيفست في فرع المغادرة',
+    descriptionEn: 'Parcels allocated to trip, manifest ready at origin hub',
+  },
+  DISPATCHED: {
+    labelAr: 'بدأت عملية النقل (استلام العهدة)',
+    labelEn: 'Dispatched / In Custody',
+    badgeClass: 'bg-blue-50 text-blue-800 border-blue-200 font-bold',
+    dotColor: 'bg-blue-500',
+    descriptionAr: 'استلم المسافر الطرود والأختام من فرع المغادرة وبدأت العهدة',
+    descriptionEn: 'Traveler received sealed custody from origin hub',
+  },
+  ARRIVED: {
+    labelAr: 'تم تسجيل الوصول للبلد',
+    labelEn: 'Arrived at Destination Country',
+    badgeClass: 'bg-teal-50 text-teal-800 border-teal-200 font-bold',
+    dotColor: 'bg-teal-500',
+    descriptionAr: 'وصل المسافر إلى بلد الوجهة وبانتظار تسليم العهدة لفرع الوصول',
+    descriptionEn: 'Arrived in destination country, pending hub handover',
+  },
+  COMPLETED: {
+    labelAr: 'اكتملت العملية وتسليم العهدة',
+    labelEn: 'Completed',
+    badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold',
+    dotColor: 'bg-emerald-600',
+    descriptionAr: 'تم تسليم الطرود والأختام بنجاح لفرع الوجهة وإغلاق العهدة وتحرير الأرباح',
+    descriptionEn: 'Custody delivered to destination hub and settled',
+  },
+  DELAYED: {
+    labelAr: 'الرحلة متأخرة',
+    labelEn: 'Flight Delayed',
+    badgeClass: 'bg-orange-50 text-orange-800 border-orange-200 font-bold',
+    dotColor: 'bg-orange-500',
+    descriptionAr: 'تم الإبلاغ عن تأخير في موعد الرحلة مع بقاء الطرود مسندة',
+    descriptionEn: 'Flight delayed, shipments kept on hold',
+  },
+  REJECTED: {
+    labelAr: 'تعذر اعتماد الرحلة',
+    labelEn: 'Rejected',
+    badgeClass: 'bg-rose-50 text-rose-800 border-rose-200 font-bold',
+    dotColor: 'bg-rose-500',
+    descriptionAr: 'لم يتم اعتماد بيانات الرحلة لعدم تطابق الوثائق مع الشروط',
+    descriptionEn: 'Trip verification declined due to invalid documents or rules',
+  },
+  CANCELLED: {
+    labelAr: 'تم إلغاء الرحلة',
+    labelEn: 'Cancelled',
+    badgeClass: 'bg-slate-100 text-slate-600 border-slate-300',
+    dotColor: 'bg-slate-400',
+    descriptionAr: 'تم إلغاء الرحلة وفك حجز الضمان وإعادة توزيع الطرود',
+    descriptionEn: 'Trip cancelled and parcels re-queued',
+  },
+  EMERGENCY_UNASSIGNED: {
+    labelAr: 'إلغاء طارئ (إعادة للفرع)',
+    labelEn: 'Emergency Unassigned',
+    badgeClass: 'bg-purple-50 text-purple-800 border-purple-200 font-bold',
+    dotColor: 'bg-purple-500',
+    descriptionAr: 'تم فك إسناد الطرود طارئاً وإعادتها لطابور المطابقة بالفرع',
+    descriptionEn: 'Parcels safely unassigned and returned to hub queue',
+  },
+  // Compatibility aliases
+  SCHEDULED: {
+    labelAr: 'قيد المراجعة والتدقيق',
+    labelEn: 'Under Review',
+    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+    dotColor: 'bg-amber-500',
+  },
+  CHECKED_IN: {
+    labelAr: 'تم تأكيد السفر',
+    labelEn: 'Trip Confirmed',
+    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold',
+    dotColor: 'bg-emerald-500',
+  },
+  IN_TRANSIT: {
+    labelAr: 'بدأت عملية النقل (العهدة)',
+    labelEn: 'In Transit',
+    badgeClass: 'bg-blue-50 text-blue-800 border-blue-200 font-bold',
+    dotColor: 'bg-blue-500',
+  },
+  IN_FLIGHT: {
+    labelAr: 'بدأت عملية النقل (العهدة)',
+    labelEn: 'In Flight',
+    badgeClass: 'bg-blue-50 text-blue-800 border-blue-200 font-bold',
+    dotColor: 'bg-blue-500',
+  },
+  ESCROW_LOCKED: {
+    labelAr: 'الضمان المالي محجوز',
+    labelEn: 'Deposit Secured',
+    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+    dotColor: 'bg-emerald-500',
+  },
+  ESCROW_PAID: {
+    labelAr: 'الضمان المالي محجوز',
+    labelEn: 'Deposit Secured',
+    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+    dotColor: 'bg-emerald-500',
+  },
+};
+
+export const getTravelerTripStatusInfo = (status?: string, isAr: boolean = true) => {
+  const cfg = (status && TRAVELER_TRIP_STATUS_LABELS[status]) || {
+    labelAr: status || 'قيد المراجعة',
+    labelEn: status || 'Under Review',
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
+    dotColor: 'bg-slate-400',
+    descriptionAr: 'جاري مراجعة الرحلة',
+    descriptionEn: 'Reviewing trip details',
+  };
+
+  return {
+    label: isAr ? cfg.labelAr : cfg.labelEn,
+    description: isAr ? cfg.descriptionAr : cfg.descriptionEn,
+    badgeClass: cfg.badgeClass,
+    dotColor: cfg.dotColor,
+  };
+};

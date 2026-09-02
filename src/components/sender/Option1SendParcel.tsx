@@ -176,6 +176,8 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
       shippingCost: baseShippingCostUSD + localDeliveryFeeUSD,
       totalCostUSD,
       selectedTripId,
+      preferredDispatchOptionId: selectedTripId,
+      preferredDepartureDate: selectedTrip?.departureDate,
       scheduledTrip: selectedTrip,
       paymentMethod: paymentGateway,
       paymentCurrency: selectedCurrency,

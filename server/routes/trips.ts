@@ -92,7 +92,7 @@ tripsRouter.post('/', (req: Request, res: Response) => {
     totalEarningsEstimated: estimatedEarnings,
     requiredEscrowDeposit: requiredDeposit,
     isEscrowPaid: false,
-    status: 'SCHEDULED',
+    status: 'SUBMITTED',
     ticketDocUrl: ticketDocUrl || '/docs/tickets/sample-ticket.pdf',
     priorityTier,
     legalCommitmentSigned: true,
@@ -113,12 +113,13 @@ tripsRouter.post('/', (req: Request, res: Response) => {
       flightNumber: newTrip.flightNumber,
       pnrCode: newTrip.pnrCode,
       availableWeightKg: weight,
+      status: 'SUBMITTED',
     },
   });
 
   res.status(201).json({
     success: true,
-    message: 'Flight trip registered and PNR verified. Please lock your refundable escrow deposit.',
+    message: 'تم تسجيل الرحلة بنجاح وهي قيد مراجعة وتدقيق الإدارة / Flight registered and pending verification',
     trip: newTrip,
   });
 });
@@ -608,8 +609,8 @@ tripsRouter.post('/:id/check-in', (req: Request, res: Response) => {
   }
 
   trip.checkedInAt = new Date().toISOString();
-  if (trip.status === 'SCHEDULED' || trip.status === 'VERIFIED') {
-    trip.status = 'CHECKED_IN';
+  if (trip.status === 'SUBMITTED' || trip.status === 'SCHEDULED' || trip.status === 'VERIFIED') {
+    trip.status = 'CONFIRMED';
   }
   db.trips.set(trip.id, trip);
 

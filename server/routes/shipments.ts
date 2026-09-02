@@ -121,6 +121,8 @@ shipmentsRouter.post('/', (req: Request, res: Response) => {
     prohibitedItemsAgreed,
     senderLegalWaiverSigned,
     sender_legal_waiver_signed,
+    preferredDispatchOptionId,
+    preferredDepartureDate,
     paymentMethod = 'WALLET',
     paymentCurrency = 'USD',
   } = req.body;
@@ -206,6 +208,8 @@ shipmentsRouter.post('/', (req: Request, res: Response) => {
     insuranceFee,
     escrowDepositRequired: quote.escrowDepositRequiredUsd,
     currentStatus: 'PENDING',
+    preferredDispatchOptionId: preferredDispatchOptionId || undefined,
+    preferredDepartureDate: preferredDepartureDate || undefined,
     senderLegalWaiverSigned: true,
     senderLegalWaiverTimestamp: new Date().toISOString(),
     paymentMethod,

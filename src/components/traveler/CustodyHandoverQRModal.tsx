@@ -50,7 +50,7 @@ export const CustodyHandoverQRModal: React.FC<CustodyHandoverQRModalProps> = ({
               <h3 className="text-base font-black text-slate-900">
                 {mode === 'DELIVER_AT_DEST'
                   ? isAr ? 'كود إخلاء الطرف وتسليم العهدة 📱' : 'Custody Handover QR 📱'
-                  : isAr ? 'كود استلام العهدة في مكتب المغادرة 📷' : 'Custody Intake QR 📷'}
+                  : isAr ? 'كود استلام العهدة في فرع المغادرة 📷' : 'Custody Intake QR 📷'}
               </h3>
               <p className="text-xs text-slate-500 font-mono">
                 {trip.airline || 'Royal Jordanian'} - #{trip.id.substring(0, 8).toUpperCase()}
@@ -102,11 +102,11 @@ export const CustodyHandoverQRModal: React.FC<CustodyHandoverQRModalProps> = ({
             <p className="text-[11px] text-emerald-800 leading-relaxed">
               {mode === 'DELIVER_AT_DEST'
                 ? isAr
-                  ? 'أظهر هذا الرمز لموظف مكتب الوصول لمسحه ومطابقة الأختام الرقمية لتحرير أموال الضمان والأرباح فوراً.'
+                  ? 'أظهر هذا الرمز لموظف فرع الوصول لمسحه ومطابقة الأختام الرقمية وإغلاق العهدة وتحرير الأرباح فوراً.'
                   : 'Present this QR code to the destination hub agent to verify digital tamper seals and unlock funds.'
                 : isAr
-                  ? 'أظهر هذا الرمز لموظف مكتب المغادرة بعد دفع الضمان لاستلام حقيبة العهدة المختومة.'
-                  : 'Present this QR code at departure hub upon escrow deposit to collect certified sealed luggage.'}
+                  ? 'أظهر هذا الرمز لموظف فرع المغادرة لاستلام حقيبة العهدة المختومة والمانيفست.'
+                  : 'Present this QR code at departure hub to collect certified sealed luggage.'}
             </p>
           </div>
 

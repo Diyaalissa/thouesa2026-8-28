@@ -40,11 +40,11 @@ export const BoardingPassCard: React.FC<BoardingPassCardProps> = ({
     }
   };
 
-  // 48h check-in timing calculation
+  // 48h confirmation timing calculation
   const departureDate = new Date(trip.departureTime);
   const now = new Date();
   const diffHours = (departureDate.getTime() - now.getTime()) / (1000 * 3600);
-  const needsCheckIn = !trip.checkedInAt && diffHours <= 48 && diffHours > 0 && ['SCHEDULED', 'VERIFIED'].includes(trip.status);
+  const needsCheckIn = !trip.checkedInAt && diffHours <= 48 && diffHours > 0 && ['SUBMITTED', 'SCHEDULED', 'VERIFIED'].includes(trip.status);
   const isUrgent24h = diffHours <= 24 && diffHours > 0;
 
   const isGoldPriority = trip.priorityTier === 'GOLD' || trip.travelerRating >= 4.9;
@@ -147,7 +147,7 @@ export const BoardingPassCard: React.FC<BoardingPassCardProps> = ({
           </div>
         </div>
 
-        {/* Pre-Flight Digital Check-in Alert (48h Protocol) */}
+        {/* Pre-Flight Digital Confirmation Alert (48h Protocol) */}
         {(needsCheckIn || isCheckInAvailable) && (
           <div className={`p-4 rounded-2xl border flex items-start gap-3 transition-all ${
             isUrgent24h 
@@ -163,7 +163,7 @@ export const BoardingPassCard: React.FC<BoardingPassCardProps> = ({
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-black">
-                  {isAr ? 'تأكيد نية السفر الرقمي (Digital Check-in)' : 'Mandatory Flight Confirmation'}
+                  {isAr ? 'تأكيد استمرار الرحلة والجاهزية للسفر' : 'Confirm Travel Readiness'}
                 </h4>
                 {diffHours > 0 && (
                   <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-white rounded-md border border-amber-200">
@@ -175,8 +175,8 @@ export const BoardingPassCard: React.FC<BoardingPassCardProps> = ({
               
               <p className="text-[11px] text-slate-600 mt-1 mb-2 leading-relaxed">
                 {isAr 
-                  ? 'يرجى تأكيد السفر عبر الزر أدناه لتثبيت جاهزية استلام الطرود من مكتب المغادرة ومنع إلغاء الرحلة.'
-                  : 'Please confirm your travel intention to secure parcel allocation at the origin hub.'}
+                  ? 'يرجى تأكيد استمرار الرحلة لتثبيت حجز الطرود وتجهيز المانيفست في فرع المغادرة ومنع إلغاء الإسناد.'
+                  : 'Please confirm your flight intention to secure parcel allocation and manifest readiness at origin hub.'}
               </p>
               
               <button 
@@ -191,7 +191,7 @@ export const BoardingPassCard: React.FC<BoardingPassCardProps> = ({
                 }`}
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{isAr ? 'تأكيد السفر الآن (Check-in)' : 'Confirm Travel Now (Check-in)'}</span>
+                <span>{isAr ? 'تأكيد الجاهزية للسفر الآن' : 'Confirm Flight Readiness'}</span>
               </button>
             </div>
           </div>
@@ -202,7 +202,7 @@ export const BoardingPassCard: React.FC<BoardingPassCardProps> = ({
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2.5 text-xs text-emerald-800 font-bold">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
-              {isAr ? 'تم تأكيد السفر رقمياً (Checked-in) - يرجى التوجه لمركز المغادرة' : 'Pre-flight check-in completed. Please visit Origin Hub.'}
+              {isAr ? 'تم تأكيد استمرار السفر - يرجى التوجه لفرع المغادرة لاستلام العهدة' : 'Flight readiness confirmed. Please visit Origin Hub for handover.'}
             </span>
           </div>
         )}

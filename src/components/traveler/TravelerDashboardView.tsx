@@ -31,8 +31,8 @@ export const TravelerDashboardView: React.FC<TravelerDashboardViewProps> = ({
   const [isMobileCurrencyModalOpen, setIsMobileCurrencyModalOpen] = useState(false);
 
   // Determine active/upcoming flight
-  const upcomingTrip = travelerTrips.find(t => t.status === 'SCHEDULED' || t.status === 'PENDING');
-  const inTransitTrip = travelerTrips.find(t => t.status === 'IN_TRANSIT' || t.status === 'ARRIVED');
+  const upcomingTrip = travelerTrips.find(t => ['SUBMITTED', 'VERIFIED', 'CONFIRMED', 'PACKAGES_LINKED', 'SCHEDULED', 'CHECKED_IN', 'PENDING'].includes(t.status));
+  const inTransitTrip = travelerTrips.find(t => ['DISPATCHED', 'IN_TRANSIT', 'IN_FLIGHT', 'ARRIVED'].includes(t.status));
   const activeTrip = inTransitTrip || upcomingTrip;
 
   // Calculate stats

@@ -549,7 +549,7 @@ export const SenderOverview: React.FC<SenderOverviewProps> = ({
           <div className="flex items-center justify-between">
             <h2 className="text-base md:text-lg font-black text-slate-800 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-brand-500" />
-              <span>{isAr ? 'شحناتك النشطة والتتبع الجوي' : 'Active Shipments & Flight Radar'}</span>
+              <span>{isAr ? 'شحناتك النشطة وتتبع المسار' : 'Active Shipments & Route Tracking'}</span>
             </h2>
             {activeShipmentsCount > 0 && (
               <button 

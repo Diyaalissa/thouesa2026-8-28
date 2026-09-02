@@ -12,33 +12,38 @@ export const TripTimeline: React.FC<TripTimelineProps> = ({ trip, locale }) => {
   
   const timelineSteps = [
     { 
-      id: 'SCHEDULED', 
-      label: isAr ? 'جدولة واعتماد التذكرة' : 'Scheduled & Verified',
+      id: 'SUBMITTED', 
+      label: isAr ? 'تسجيل ومراجعة بيانات الرحلة' : 'Trip Registered & Under Review',
       isCompleted: true // always completed if trip exists
     },
     { 
-      id: 'CHECKED_IN', 
-      label: isAr ? 'تأكيد السفر (Check-in)' : 'Pre-flight Check-in',
-      isCompleted: ['CHECKED_IN', 'PACKAGES_LINKED', 'ESCROW_LOCKED', 'IN_TRANSIT', 'COMPLETED'].includes(trip.status)
+      id: 'VERIFIED', 
+      label: isAr ? 'التحقق من التذكرة واعتماد السعة' : 'Ticket & Capacity Verified',
+      isCompleted: !['SUBMITTED'].includes(trip.status)
+    },
+    { 
+      id: 'CONFIRMED', 
+      label: isAr ? 'تأكيد الجاهزية للسفر' : 'Travel Readiness Confirmed',
+      isCompleted: !!trip.checkedInAt || ['CONFIRMED', 'CHECKED_IN', 'PACKAGES_LINKED', 'DISPATCHED', 'IN_TRANSIT', 'IN_FLIGHT', 'ARRIVED', 'COMPLETED'].includes(trip.status)
     },
     { 
       id: 'PACKAGES_LINKED', 
-      label: isAr ? 'ربط الطرود الجاهزة' : 'Packages Linked',
-      isCompleted: ['PACKAGES_LINKED', 'ESCROW_LOCKED', 'IN_TRANSIT', 'COMPLETED'].includes(trip.status)
+      label: isAr ? 'إسناد الطرود وتجهيز المانيفست' : 'Packages Linked & Manifest Ready',
+      isCompleted: ['PACKAGES_LINKED', 'DISPATCHED', 'IN_TRANSIT', 'IN_FLIGHT', 'ARRIVED', 'COMPLETED'].includes(trip.status)
     },
     { 
-      id: 'ESCROW_LOCKED', 
-      label: isAr ? 'دفع الضمان واستلام الطرود' : 'Escrow Paid & Pickup',
-      isCompleted: ['ESCROW_LOCKED', 'IN_TRANSIT', 'COMPLETED'].includes(trip.status)
+      id: 'DISPATCHED', 
+      label: isAr ? 'استلام العهدة من فرع المغادرة' : 'Custody Handed Over at Origin Hub',
+      isCompleted: ['DISPATCHED', 'IN_TRANSIT', 'IN_FLIGHT', 'ARRIVED', 'COMPLETED'].includes(trip.status)
     },
     { 
-      id: 'IN_TRANSIT', 
-      label: isAr ? 'التوجه لمكتب الوصول' : 'Transit to Destination',
-      isCompleted: ['IN_TRANSIT', 'COMPLETED'].includes(trip.status)
+      id: 'ARRIVED', 
+      label: isAr ? 'الوصول لبلد الوجهة' : 'Arrived at Destination Country',
+      isCompleted: ['ARRIVED', 'COMPLETED'].includes(trip.status)
     },
     { 
       id: 'COMPLETED', 
-      label: isAr ? 'تسليم وإخلاء طرف' : 'Drop-off & Payout',
+      label: isAr ? 'تسليم العهدة لفرع الوصول وإغلاقها' : 'Delivered to Destination Hub & Settled',
       isCompleted: trip.status === 'COMPLETED'
     }
   ];

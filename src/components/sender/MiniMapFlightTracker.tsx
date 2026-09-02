@@ -104,8 +104,9 @@ export const MiniMapFlightTracker: React.FC<MiniMapFlightTrackerProps> = ({
   const isRtl = isAr;
 
   // Extract origin and destination airport / hub codes
+  const destHubId = shipment.destinationHubId || (shipment as any).destHubId || 'hub-alg';
   const originCode = shipment.originHubId?.includes('amm') ? 'AMM' : shipment.originHubId?.includes('alg') ? 'ALG' : 'AMM';
-  const destCode = shipment.destHubId?.includes('alg') ? 'ALG' : shipment.destHubId?.includes('orn') ? 'ORN' : shipment.destHubId?.includes('amm') ? 'AMM' : 'ALG';
+  const destCode = destHubId.includes('alg') ? 'ALG' : destHubId.includes('orn') ? 'ORN' : destHubId.includes('amm') ? 'AMM' : 'ALG';
   
   const originCity = originCode === 'AMM' ? (isAr ? 'عمّان، الأردن 🇯🇴' : 'Amman, Jordan 🇯🇴') : (isAr ? 'الجزائر العاصمة 🇩🇿' : 'Algiers, Algeria 🇩🇿');
   const destCity = destCode === 'ALG' ? (isAr ? 'الجزائر العاصمة 🇩🇿' : 'Algiers, Algeria 🇩🇿') : destCode === 'ORN' ? (isAr ? 'وهران، الجزائر 🇩🇿' : 'Oran, Algeria 🇩🇿') : (isAr ? 'عمّان، الأردن 🇯🇴' : 'Amman, Jordan 🇯🇴');
@@ -142,7 +143,7 @@ export const MiniMapFlightTracker: React.FC<MiniMapFlightTrackerProps> = ({
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping inline-block" />
           <span className="text-xs font-bold text-slate-300">
-            {isAr ? 'تتبع الرحلة الجوية المباشر' : 'Live Flight Radar Tracking'}
+            {isAr ? 'تتبع مسار شحنة الطلب' : 'Shipment Route Tracking'}
           </span>
         </div>
         <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border ${stage.badgeColor}`}>
