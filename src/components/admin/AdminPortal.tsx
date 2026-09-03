@@ -66,7 +66,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onToggleHubStatus,
 }) => {
   const isAr = locale === 'ar';
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<
     'METRICS' | 'EMPLOYEES' | 'DISPUTES' | 'KYC_MANAGER' | 'CUSTOMS_RULES' | 'RATES_LOCK' | 'AUDIT_LOGS' | 'CRON_TERMINAL' | 'SYSTEM_SETTINGS'
   >('METRICS');
@@ -204,7 +204,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       {/* 2. MAIN ADMIN WORKSPACE WITH SIDEBAR NAVIGATION */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Professional Admin Sidebar (Collapsible) */}
-        <aside className={`shrink-0 bg-white border-l border-slate-200 transition-all duration-300 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] relative z-0 overflow-y-auto scrollbar-none ${isSidebarOpen ? 'w-72 px-4 py-6' : 'w-20 px-2 py-6 items-center'}`}>
+        <aside
+          className={`shrink-0 bg-white ${
+            isAr ? 'border-l' : 'border-r'
+          } border-slate-200 transition-all duration-300 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] relative z-0 overflow-y-auto scrollbar-none ${
+            isSidebarOpen
+              ? 'w-72 px-4 py-6 opacity-100'
+              : 'w-0 p-0 opacity-0 overflow-hidden border-none pointer-events-none'
+          }`}
+        >
             {isSidebarOpen && (
               <div className="text-[11px] font-black tracking-wider text-slate-400 uppercase flex items-center justify-between mb-4 px-2">
                 <span>{isAr ? 'لوحات الإدارة المركزية' : 'Central Admin Modules'}</span>

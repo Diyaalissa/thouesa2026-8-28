@@ -456,6 +456,45 @@ const hubManagerUser: User = {
   createdAt: '2025-05-10T12:00:00Z',
 };
 
+const hubInspectorUser: User = {
+  id: 'usr-inspector-505',
+  fullName: 'طارق زياني (Tariq Zayani)',
+  email: 'inspector.amman@thouesa.com',
+  phone: '+962 79 123 4567',
+  role: 'HUB_INSPECTOR',
+  kycStatus: 'VERIFIED',
+  isActive: true,
+  preferredLocale: 'ar',
+  avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
+  createdAt: '2025-06-15T09:00:00Z',
+};
+
+const pricingManagerUser: User = {
+  id: 'usr-pricing-606',
+  fullName: 'منى القيسي (Mona Al-Qaisi)',
+  email: 'pricing@thouesa.com',
+  phone: '+962 77 999 8877',
+  role: 'PRICING_MANAGER',
+  kycStatus: 'VERIFIED',
+  isActive: true,
+  preferredLocale: 'ar',
+  avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&auto=format&fit=crop&q=80',
+  createdAt: '2025-04-01T10:00:00Z',
+};
+
+const financialOfficerUser: User = {
+  id: 'usr-finance-707',
+  fullName: 'حمزة بوعلام (Hamza Boualam)',
+  email: 'treasury@thouesa.com',
+  phone: '+213 55 111 2233',
+  role: 'FINANCIAL_OFFICER',
+  kycStatus: 'VERIFIED',
+  isActive: true,
+  preferredLocale: 'ar',
+  avatarUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=120&auto=format&fit=crop&q=80',
+  createdAt: '2025-03-20T11:00:00Z',
+};
+
 const adminUser: User = {
   id: 'usr-admin-001',
   fullName: 'د. ضياء الحوت (Eng. Diya Al-Hout)',
@@ -474,11 +513,17 @@ export const DEMO_PROFILES: Record<string, User> = {
   traveler: travelerUser,
   hubAgent: hubAgentUser,
   hubManager: hubManagerUser,
+  hubInspector: hubInspectorUser,
+  pricingManager: pricingManagerUser,
+  financialOfficer: financialOfficerUser,
   admin: adminUser,
   SENDER: senderUser,
   TRAVELER: travelerUser,
   HUB_AGENT: hubAgentUser,
+  HUB_INSPECTOR: hubInspectorUser,
   HUB_MANAGER: hubManagerUser,
+  PRICING_MANAGER: pricingManagerUser,
+  FINANCIAL_OFFICER: financialOfficerUser,
   MASTER_ADMIN: adminUser,
 };
 

@@ -439,28 +439,44 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full bg-slate-50" dir={isAr ? 'rtl' : 'ltr'}>
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Toggle Button to Re-open Sidebar when Closed */}
+        {!isSidebarOpen && (
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className={`hidden md:flex items-center gap-2 absolute top-3 ${
+              isAr ? 'right-3' : 'left-3'
+            } z-30 px-3.5 py-2 bg-white/95 backdrop-blur-sm hover:bg-slate-50 text-slate-700 hover:text-brand-600 border border-slate-200 rounded-xl shadow-sm text-xs font-bold transition-all cursor-pointer hover:shadow-md`}
+            title={isAr ? 'فتح القائمة الجانبية' : 'Open Sidebar'}
+          >
+            <Menu className="w-4 h-4 text-brand-500" />
+            <span>{isAr ? 'القائمة' : 'Menu'}</span>
+          </button>
+        )}
+
         {/* Sidebar Navigation */}
         <aside
-          className={`hidden md:flex shrink-0 flex-col bg-white border-${isAr ? 'l' : 'r'} border-slate-200 overflow-y-auto transition-all duration-300 z-20 ${
-            isSidebarOpen ? 'w-64' : 'w-20'
+          className={`hidden md:flex shrink-0 flex-col bg-white ${
+            isAr ? 'border-l' : 'border-r'
+          } border-slate-200 overflow-y-auto transition-all duration-300 z-20 ${
+            isSidebarOpen
+              ? 'w-64 opacity-100'
+              : 'w-0 opacity-0 pointer-events-none p-0 overflow-hidden border-none'
           }`}
         >
-          
-          <div className={`p-4 flex items-center border-b border-slate-100 ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
-            {isSidebarOpen && (
-              <span className="text-xs font-black text-slate-800 tracking-wider">
-                {isAr ? 'الخدمات' : 'SERVICES'}
-              </span>
-            )}
+          <div className="p-4 flex items-center justify-between border-b border-slate-100 shrink-0">
+            <span className="text-xs font-black text-slate-800 tracking-wider">
+              {isAr ? 'الخدمات' : 'SERVICES'}
+            </span>
             <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 flex items-center justify-center transition-colors"
+              onClick={() => setIsSidebarOpen(false)}
+              className="w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+              title={isAr ? 'إغلاق القائمة الجانبية' : 'Close Sidebar'}
             >
-              <Menu className="w-4 h-4" />
+              <X className="w-4 h-4" />
             </button>
           </div>
-<div className="p-4 space-y-2 flex-1">
+          <div className="p-4 space-y-2 flex-1">
             <button
               onClick={() => setActiveTab('OVERVIEW')}
               className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
@@ -835,7 +851,7 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
                         <div className="flex items-center justify-between gap-2 mb-3">
                           <div className="flex items-center gap-2">
                             <span className="font-mono font-bold text-xs text-white tracking-wide">
-                              #{s.trackingNumber.split('-').slice(-2).join('-') || s.trackingNumber}
+                              #{s.trackingNumber ? s.trackingNumber.split('-').slice(-2).join('-') : s.id}
                             </span>
                             <span className="text-[10px] text-slate-500">
                               {new Date(s.createdAt || Date.now()).toLocaleDateString(isAr ? 'ar-JO' : 'en-US', { day: 'numeric', month: 'short' })}

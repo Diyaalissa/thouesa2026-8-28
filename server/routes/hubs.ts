@@ -350,6 +350,86 @@ hubsRouter.get('/overview', (req: Request, res: Response) => {
   });
 });
 
+// Physical Package Reception at Origin Hub Desk (Customer Drop-off)
+hubsRouter.post('/shipments/:id/receive', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { employeeId, agentId, hubId, notes } = req.body;
+  const actingEmployeeId = employeeId || agentId || 'usr-agent-303';
+
+  const shipment = db.shipments.get(id);
+  if (!shipment) {
+    return res.status(404).json({ success: false, error: 'الطلب أو الشحنة غير موجودة في سجلات النظام.' });
+  }
+
+  // Verification 1: originHubId check
+  if (hubId && shipment.originHubId !== hubId) {
+    return res.status(403).json({
+      success: false,
+      error: 'لا يمكن استلام هذا الطرد في هذا الفرع؛ فرع المنشأ المحدد في بوليصة الشحن مختلف.',
+    });
+  }
+
+  // Verification 2: Status check (Must be pending drop-off)
+  const acceptableIntakeStatuses = ['PENDING', 'PENDING_REVIEW', 'PENDING_DROPOFF', 'PENDING_HUB_DROPOFF', 'DRAFT'];
+  if (!acceptableIntakeStatuses.includes(shipment.currentStatus)) {
+    return res.status(400).json({
+      success: false,
+      error: `لا يمكن استلام الطرد؛ الحالة الحالية هي (${shipment.currentStatus}) وتم استلامه أو معالجته مسبقاً.`,
+    });
+  }
+
+  // State Transition: PENDING_DROPOFF -> RECEIVED_AT_ORIGIN
+  const nowIso = new Date().toISOString();
+  shipment.currentStatus = 'RECEIVED_AT_ORIGIN';
+  shipment.receivedAtOriginHubAt = nowIso;
+  shipment.receivedByEmployeeId = actingEmployeeId;
+  shipment.receivedAtHubId = hubId || shipment.originHubId;
+  shipment.updatedAt = nowIso;
+
+  db.shipments.set(shipment.id, shipment);
+
+  const hub = db.hubs.get(shipment.originHubId);
+
+  // Audit Logging
+  db.logAudit({
+    actorId: actingEmployeeId,
+    actorName: 'موظف فرع المنشأ',
+    actorRole: 'HUB_AGENT',
+    domain: 'HubIntake',
+    action: 'RECEIVE_PACKAGE_AT_ORIGIN_DESK',
+    resourceType: 'Shipment',
+    resourceId: shipment.id,
+    details: {
+      trackingNumber: shipment.trackingNumber,
+      originHubId: shipment.originHubId,
+      hubCode: hub?.code,
+      receivedAt: nowIso,
+      senderName: shipment.senderName,
+      notes: notes || 'تم استلام الطرد فعلياً على كاونتر الاستقبال بانتظار نقله لمحطة الفحص والوزن.',
+    },
+  });
+
+  // Customer & System Notification
+  const intakeNotif = db.pushNotification({
+    type: 'SHIPMENT_UPDATED',
+    titleAr: `تم استلام طردك في الفرع: ${shipment.trackingNumber}`,
+    titleEn: `Package Received at Branch: ${shipment.trackingNumber}`,
+    messageAr: `تم استلام طردك بنجاح في فرع (${hub?.nameAr || 'ثويسة'}). سيتم نقله الآن لمحطة الفحص والوزن والختم الأمني.`,
+    messageEn: `Your package was received at (${hub?.nameEn || 'THOUESA Hub'}). Moving to certified inspection & sealing.`,
+    targetRole: 'SENDER',
+    targetUserId: shipment.senderId,
+    referenceId: shipment.id,
+    priority: 'NORMAL',
+  });
+  broadcastNotification(intakeNotif);
+
+  return res.json({
+    success: true,
+    message: `تم استلام الطرد (${shipment.trackingNumber}) بنجاح وتسجيله في عهدة فرع المنشأ.`,
+    shipment,
+  });
+});
+
 // Physical Intake & Inspection at Origin Hub (Scales weighing + Tamper Seal + 360° Photos)
 hubsRouter.post('/shipments/:id/inspect', (req: Request, res: Response) => {
   const { id } = req.params;

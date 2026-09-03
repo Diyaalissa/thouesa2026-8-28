@@ -177,7 +177,7 @@ export const Alerts: React.FC<AlertsProps> = ({ locale, onNavigateAction }) => {
                     <Clock className="w-3 h-3 text-slate-500" />
                     <span>{isAr ? 'الآن' : 'Just now'}</span>
                     {toast.referenceId && (
-                      <span className="text-slate-500">| #{toast.referenceId.slice(-8)}</span>
+                      <span className="text-slate-500">| #{String(toast.referenceId).slice(-8)}</span>
                     )}
                   </div>
 

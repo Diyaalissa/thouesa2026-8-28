@@ -1,4 +1,4 @@
-export type UserRole = 'SENDER' | 'TRAVELER' | 'HUB_AGENT' | 'HUB_MANAGER' | 'HUB_INSPECTOR' | 'MASTER_ADMIN' | 'EMPLOYEE';
+export type UserRole = 'SENDER' | 'TRAVELER' | 'HUB_AGENT' | 'HUB_MANAGER' | 'HUB_INSPECTOR' | 'PRICING_MANAGER' | 'FINANCIAL_OFFICER' | 'MASTER_ADMIN' | 'EMPLOYEE';
 
 export type KYCStatus = 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
 
@@ -226,6 +226,9 @@ export interface Shipment {
   };
   deliveryProofSignature?: string;
   deliveredAt?: string;
+  receivedAtOriginHubAt?: string;
+  receivedByEmployeeId?: string;
+  receivedAtHubId?: string;
   customsDutyRecord?: CustomsDutyRecord;
   createdAt: string;
   updatedAt: string;
@@ -443,6 +446,7 @@ export type NotificationType =
   | 'ESCROW_LOCKED'
   | 'ESCROW_RELEASED'
   | 'SHIPMENT_ARRIVED'
+  | 'SHIPMENT_UPDATED'
   | 'IN_TRANSIT'
   | 'READY_FOR_PICKUP'
   | 'DELIVERED_TO_DEST'
@@ -464,4 +468,211 @@ export interface SystemNotification {
   isRead: boolean;
   priority?: 'HIGH' | 'NORMAL' | 'LOW';
   createdAt: string;
+}
+
+// ----------------------------------------------------
+// Employee Operations Portal V1 Types
+// ----------------------------------------------------
+
+export type EmployeeNavSection =
+  // 1. Dashboard
+  | 'OPERATIONS_DASHBOARD'
+  // 2. Shipments
+  | 'ORIGIN_INTAKE'
+  | 'INSPECTION_WEIGHT'
+  | 'READY_FOR_TRANSPORT'
+  // 3. Travelers
+  | 'TRIP_VERIFICATION'
+  | 'VERIFIED_TRIPS'
+  // 4. Transport
+  | 'MATCHING'
+  | 'MANIFESTS'
+  | 'TRAVELER_HANDOVER'
+  | 'DESTINATION_INTAKE'
+  // 5. Delivery
+  | 'PICKUP_PREPARATION'
+  | 'FINAL_DELIVERY'
+  // 6. Pricing & Calculator
+  | 'PRICING_CALCULATOR'
+  | 'SHIPPING_RATES'
+  | 'EXCHANGE_RATES'
+  | 'RATE_HISTORY'
+  // 7. Settlements & FX
+  | 'CURRENCY_SETTLEMENT'
+  | 'CUSTOMER_PAYMENTS'
+  | 'TRAVELER_SETTLEMENTS'
+  | 'SETTLEMENT_HISTORY'
+  // 8. Exceptions
+  | 'INCIDENTS_DISPUTES'
+  | 'OPERATIONAL_INCIDENTS'
+  // 9. Audit & Search
+  | 'AUDIT_LOGS'
+  | 'GLOBAL_SEARCH';
+
+export type RateType = 'CUSTOMER_SHIPPING' | 'TRAVELER_COMPENSATION';
+export type PricingModel = 'PER_KG' | 'FLAT_RATE' | 'WEIGHT_TIERS';
+
+export interface WeightTier {
+  fromKg: number;
+  toKg: number;
+  ratePerKg: number;
+}
+
+export interface ShippingRate {
+  id: string;
+  originCountry: string; // 'JO' | 'DZ'
+  destinationCountry: string; // 'DZ' | 'JO'
+  originHubId?: string;
+  destinationHubId?: string;
+  serviceType: ServiceType;
+  rateType: RateType;
+  pricingModel: PricingModel;
+  currency: Currency;
+  ratePerKg: number;
+  minimumCharge: number;
+  minimumBillableWeightKg: number;
+  tiers?: WeightTier[];
+  effectiveFrom: string;
+  effectiveUntil?: string;
+  version: number;
+  status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+  createdBy: string;
+  createdAt: string;
+  reason?: string;
+}
+
+export interface RateHistoryEntry {
+  id: string;
+  rateId: string;
+  routeAr: string;
+  routeEn: string;
+  originCountry: string;
+  destinationCountry: string;
+  serviceType: ServiceType;
+  pricingModel: PricingModel;
+  oldRateText: string;
+  newRateText: string;
+  changedBy: string;
+  changedByName: string;
+  date: string;
+  versionText: string;
+  reason: string;
+}
+
+export interface DailyExchangeRate {
+  id: string;
+  baseCurrency: Currency; // e.g. 'DZD'
+  quoteCurrency: Currency; // e.g. 'JOD'
+  buyRate: number; // THOUESA buys baseCurrency
+  sellRate: number; // THOUESA sells baseCurrency
+  effectiveFrom: string;
+  effectiveUntil?: string;
+  countryScope: string; // 'JO' | 'DZ' | 'GLOBAL'
+  source: string;
+  version: string; // e.g. 'FX-2026-09-03-01'
+  status: 'ACTIVE' | 'CLOSED' | 'ARCHIVED';
+  createdBy: string;
+  createdAt: string;
+  notes?: string;
+}
+
+export interface FxQuoteLock {
+  quoteId: string;
+  exchangeRateId: string;
+  baseCurrency: Currency;
+  quoteCurrency: Currency;
+  appliedSide: 'BUY' | 'SELL';
+  lockedRate: number;
+  expiresAt: string;
+  used: boolean;
+  createdAt: string;
+}
+
+export type SettlementType = 'CUSTOMER_PAYMENT' | 'TRAVELER_PAYOUT' | 'REFUND';
+export type SettlementStatus =
+  | 'DRAFT'
+  | 'QUOTED'
+  | 'PENDING_PAYMENT'
+  | 'PAID'
+  | 'PENDING_PAYOUT'
+  | 'SETTLED'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'REVERSED';
+
+export interface SettlementRecord {
+  id: string;
+  settlementNumber: string; // STL-2026-89214
+  type: SettlementType;
+  relatedUserId: string;
+  relatedUserName: string;
+  shipmentId?: string;
+  trackingNumber?: string;
+  tripId?: string;
+  flightNumber?: string;
+  manifestId?: string;
+  hubId: string;
+  hubCode: string;
+  
+  // Base amount
+  baseAmount: number;
+  baseCurrency: Currency;
+  
+  // Converted amount
+  settlementCurrency: Currency;
+  exchangeRateId?: string;
+  rateVersion?: string;
+  fxSide: 'BUY' | 'SELL' | 'NONE';
+  appliedFxRate: number;
+  convertedAmount: number;
+  
+  fees: number;
+  adjustments: number;
+  finalAmount: number;
+  
+  status: SettlementStatus;
+  idempotencyKey: string;
+  processedBy: string;
+  processedByName: string;
+  processedAt: string;
+  receiptNumber?: string;
+  notes?: string;
+}
+
+export type IncidentCategory =
+  | 'WEIGHT_DIFFERENCE'
+  | 'PROHIBITED_ITEM'
+  | 'DAMAGED_PACKAGE'
+  | 'SEAL_MISMATCH'
+  | 'MISSING_PACKAGE'
+  | 'TRAVELER_CANCELLATION'
+  | 'TRAVELER_DELAY'
+  | 'MANIFEST_DIFFERENCE'
+  | 'CUSTOMS_HOLD'
+  | 'IDENTITY_ISSUE'
+  | 'OTHER';
+
+export type IncidentPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+export type IncidentStatus = 'OPEN' | 'UNDER_REVIEW' | 'ACTION_REQUIRED' | 'RESOLVED' | 'ESCALATED';
+
+export interface OperationalIncident {
+  id: string;
+  incidentNumber: string; // INC-2026-0041
+  category: IncidentCategory;
+  priority: IncidentPriority;
+  status: IncidentStatus;
+  hubId: string;
+  hubName: string;
+  relatedShipmentId?: string;
+  trackingNumber?: string;
+  relatedTripId?: string;
+  flightNumber?: string;
+  relatedManifestId?: string;
+  description: string;
+  evidencePhotos: string[];
+  assignedEmployeeId: string;
+  assignedEmployeeName: string;
+  resolutionNotes?: string;
+  createdAt: string;
+  updatedAt: string;
 }

@@ -14,6 +14,8 @@ import {
   UserPlus,
   Sun,
   Moon,
+  Coins,
+  TrendingUp,
 } from 'lucide-react';
 import { EscrowWallet, Locale, ThemeMode, UserRole, User as UserType } from '../../types';
 import { formatCurrency } from '../../lib/crypto';
@@ -50,6 +52,15 @@ export const Header: React.FC<HeaderProps> = ({
   const isAr = locale === 'ar';
   const isLight = themeMode === 'light';
 
+  // Determine if the current view/role already has its own dedicated in-portal header (such as HubPortal or AdminPortal)
+  const hasDedicatedHeader = [
+    'HUB_AGENT',
+    'HUB_MANAGER',
+    'PRICING_MANAGER',
+    'FINANCIAL_OFFICER',
+    'MASTER_ADMIN',
+  ].includes(currentRole);
+
   const toggleLightDarkMode = () => {
     onThemeChange(isLight ? 'slate' : 'light');
   };
@@ -78,8 +89,8 @@ export const Header: React.FC<HeaderProps> = ({
     },
     {
       key: 'HUB_AGENT',
-      labelAr: 'بوابة الموظفين المركزية',
-      labelEn: 'Central Staff Terminal',
+      labelAr: 'موظف الفرع (العمليات والمالية)',
+      labelEn: 'Hub Officer',
       icon: Building2,
       color: 'bg-amber-600 text-white',
     },
@@ -96,7 +107,9 @@ export const Header: React.FC<HeaderProps> = ({
     <header
       id="main-app-header"
       className={`sticky top-0 z-40 select-none transition-colors duration-200 ${
-        isLight
+        hasDedicatedHeader
+          ? 'bg-transparent'
+          : isLight
           ? 'bg-white/95 border-b border-slate-200 text-slate-900 shadow-xs backdrop-blur-md'
           : 'bg-slate-900/95 border-b border-slate-800 text-white shadow-md backdrop-blur-md'
       }`}
@@ -143,17 +156,15 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Main Navigation Bar */}
-      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-        {/* Brand & Identity */}
+      {/* Main Navigation Bar - Hidden when portal has its own dedicated topbar */}
+      {!hasDedicatedHeader && (
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+          {/* Brand & Identity */}
         <div
           id="brand-logo-button"
           className="flex items-center gap-3 cursor-pointer"
           onClick={() => onRoleChange('PUBLIC')}
         >
-          <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-sm border border-slate-700 overflow-hidden p-1 shrink-0">
-            <img src={logoUrl || "/logo.png"} alt="Thouesa" className="w-full h-full object-contain" />
-          </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className={`text-xl font-black tracking-tight flex items-center gap-1.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
@@ -315,6 +326,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
       </div>
+      )}
     </header>
   );
 };

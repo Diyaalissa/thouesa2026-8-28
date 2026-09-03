@@ -311,6 +311,33 @@ export default function App() {
     }
   };
 
+  const handleReceivePackage = async (shipmentId: string, notes?: string) => {
+    try {
+      const res = await safeFetchJson(`/api/hubs/shipments/${shipmentId}/receive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: currentUser?.id,
+          agentId: currentUser?.id,
+          hubId: currentHub?.id,
+          notes,
+        }),
+      });
+
+      if (res?.success) {
+        await fetchData();
+        return true;
+      }
+      if (res?.error) {
+        alert(res.error);
+      }
+      return false;
+    } catch (err) {
+      console.error('Receive package error:', err);
+      return false;
+    }
+  };
+
   const handleInspectShipment = async (payload: any) => {
     try {
       const res = await safeFetchJson(`/api/hubs/intake-inspect`, {
@@ -548,9 +575,9 @@ export default function App() {
           />
         )}
 
-        {(currentRole === 'HUB_AGENT' || currentRole === 'HUB_MANAGER') && (
+        {(currentRole === 'HUB_AGENT' || currentRole === 'HUB_MANAGER' || currentRole === 'PRICING_MANAGER' || currentRole === 'FINANCIAL_OFFICER') && (
           <HubPortal
-            currentUser={currentUser || DEMO_PROFILES.HUB_AGENT}
+            currentUser={currentUser || (DEMO_PROFILES as any)[currentRole] || DEMO_PROFILES.HUB_AGENT}
             currentHub={currentHub}
             shipments={shipments}
             trips={trips}
@@ -561,6 +588,7 @@ export default function App() {
               const h = hubs.find((item) => item.id === hubId) || HUBS_DATA.find((item) => item.id === hubId);
               if (h) setCurrentHub(h);
             }}
+            onReceivePackage={handleReceivePackage}
             onInspectShipment={handleInspectShipment}
             onCreateManifest={handleCreateManifest}
             onHandoverDispatch={handleHandoverDispatch}
