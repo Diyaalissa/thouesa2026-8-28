@@ -242,8 +242,8 @@ export const TravelerWalletWorkspace: React.FC<TravelerWalletWorkspaceProps> = (
       
       if (txnSearchQuery) {
         const query = txnSearchQuery.toLowerCase();
-        const matchesCode = txn.transactionCode.toLowerCase().includes(query);
-        const matchesNote = txn.referenceNote.toLowerCase().includes(query);
+        const matchesCode = (txn.transactionCode || '').toLowerCase().includes(query);
+        const matchesNote = (txn.referenceNote || '').toLowerCase().includes(query);
         return matchesCode || matchesNote;
       }
       return true;

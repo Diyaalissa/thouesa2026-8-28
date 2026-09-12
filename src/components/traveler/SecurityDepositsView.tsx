@@ -198,10 +198,10 @@ export const SecurityDepositsView: React.FC<SecurityDepositsViewProps> = ({
     if (!searchQuery) return list;
     const q = searchQuery.toLowerCase();
     return list.filter(d => 
-      d.bondNumber.toLowerCase().includes(q) ||
-      d.flightNumber.toLowerCase().includes(q) ||
-      d.route.toLowerCase().includes(q) ||
-      d.paymentBranch.toLowerCase().includes(q)
+      (d.bondNumber || '').toLowerCase().includes(q) ||
+      (d.flightNumber || '').toLowerCase().includes(q) ||
+      (d.route || '').toLowerCase().includes(q) ||
+      (d.paymentBranch || '').toLowerCase().includes(q)
     );
   }, [activeTab, activeDepositsList, refundedDepositsList, searchQuery]);
 

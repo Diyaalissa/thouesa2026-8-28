@@ -318,10 +318,11 @@ export const DisputesManager: React.FC<DisputesManagerProps> = ({
       statusFilter === 'ALL' ||
       d.status === statusFilter ||
       (statusFilter === 'PENDING' && (d.status === 'OPEN' || d.status === 'UNDER_REVIEW'));
+    const q = (searchQuery || '').toLowerCase();
     const matchesSearch =
-      d.trackingNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.claimantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (d.assignedEmployeeName && d.assignedEmployeeName.toLowerCase().includes(searchQuery.toLowerCase()));
+      (d.trackingNumber || '').toLowerCase().includes(q) ||
+      (d.claimantName || '').toLowerCase().includes(q) ||
+      (d.assignedEmployeeName && d.assignedEmployeeName.toLowerCase().includes(q));
     return matchesStatus && matchesSearch;
   });
 

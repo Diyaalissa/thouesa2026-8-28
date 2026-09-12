@@ -65,7 +65,7 @@ export const GlobalSearchView: React.FC<GlobalSearchViewProps> = ({
 
     const matchedShipments = shipments.filter((s) => {
       return (
-        s.id.toLowerCase().includes(cleanQuery) ||
+        (s.id || '').toLowerCase().includes(cleanQuery) ||
         (s.trackingNumber && s.trackingNumber.toLowerCase().includes(cleanQuery)) ||
         (s.securitySealNumber && s.securitySealNumber.toLowerCase().includes(cleanQuery)) ||
         (s.senderName && s.senderName.toLowerCase().includes(cleanQuery)) ||
@@ -77,31 +77,31 @@ export const GlobalSearchView: React.FC<GlobalSearchViewProps> = ({
 
     const matchedTrips = trips.filter((t) => {
       return (
-        t.id.toLowerCase().includes(cleanQuery) ||
-        t.flightNumber.toLowerCase().includes(cleanQuery) ||
-        t.travelerName.toLowerCase().includes(cleanQuery) ||
-        t.travelerId.toLowerCase().includes(cleanQuery) ||
+        (t.id || '').toLowerCase().includes(cleanQuery) ||
+        (t.flightNumber && t.flightNumber.toLowerCase().includes(cleanQuery)) ||
+        (t.travelerName && t.travelerName.toLowerCase().includes(cleanQuery)) ||
+        (t.travelerId && t.travelerId.toLowerCase().includes(cleanQuery)) ||
         (t.airline && t.airline.toLowerCase().includes(cleanQuery))
       );
     });
 
     const matchedManifests = manifests.filter((m) => {
       return (
-        m.id.toLowerCase().includes(cleanQuery) ||
-        m.flightNumber.toLowerCase().includes(cleanQuery) ||
-        m.travelerName.toLowerCase().includes(cleanQuery) ||
-        m.originHubCode.toLowerCase().includes(cleanQuery) ||
-        m.destHubCode.toLowerCase().includes(cleanQuery)
+        (m.id || '').toLowerCase().includes(cleanQuery) ||
+        (m.flightNumber && m.flightNumber.toLowerCase().includes(cleanQuery)) ||
+        (m.travelerName && m.travelerName.toLowerCase().includes(cleanQuery)) ||
+        (m.originHubCode && m.originHubCode.toLowerCase().includes(cleanQuery)) ||
+        (m.destHubCode && m.destHubCode.toLowerCase().includes(cleanQuery))
       );
     });
 
     const matchedIncidents = incidents.filter((i) => {
       return (
-        i.incidentNumber.toLowerCase().includes(cleanQuery) ||
+        (i.incidentNumber && i.incidentNumber.toLowerCase().includes(cleanQuery)) ||
         (i.trackingNumber && i.trackingNumber.toLowerCase().includes(cleanQuery)) ||
         (i.relatedManifestId && i.relatedManifestId.toLowerCase().includes(cleanQuery)) ||
         (i.flightNumber && i.flightNumber.toLowerCase().includes(cleanQuery)) ||
-        i.description.toLowerCase().includes(cleanQuery)
+        (i.description && i.description.toLowerCase().includes(cleanQuery))
       );
     });
 

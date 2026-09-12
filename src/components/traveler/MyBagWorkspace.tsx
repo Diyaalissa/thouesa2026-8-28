@@ -259,9 +259,9 @@ export const MyBagWorkspace: React.FC<MyBagWorkspaceProps> = ({ trip, shipments,
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(s => 
-        s.trackingNumber.toLowerCase().includes(q) || 
-        s.itemDescription.toLowerCase().includes(q) ||
-        (s.recipientName && s.recipientName.toLowerCase().includes(q))
+        (s.trackingNumber || '').toLowerCase().includes(q) || 
+        (s.itemDescription || '').toLowerCase().includes(q) ||
+        (s.recipientName || '').toLowerCase().includes(q)
       );
     }
 

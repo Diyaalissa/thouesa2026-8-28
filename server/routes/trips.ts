@@ -703,3 +703,220 @@ tripsRouter.post('/:id/emergency-cancel-request', (req: Request, res: Response) 
   });
 });
 
+// Employee Portal: Verify Trip
+tripsRouter.post('/:id/verify', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { employeeId = 'EMP-OPS-001', employeeName = 'Employee Reviewer' } = req.body;
+  const trip = db.trips.get(id);
+
+  if (!trip) {
+    return res.status(404).json({ success: false, error: 'الرحلة غير موجودة / Trip not found' });
+  }
+
+  if (trip.status !== 'SUBMITTED' && trip.status !== 'NEEDS_UPDATE') {
+    return res.status(400).json({
+      success: false,
+      error: `لا يمكن اعتماد رحلة بحالة [${trip.status}]. الاعتماد متاح فقط للرحلات المسجلة أو التي طُلب تحديثها.`,
+    });
+  }
+
+  trip.status = 'VERIFIED';
+  trip.verifiedAt = new Date().toISOString();
+  trip.verifiedByEmployeeId = employeeId;
+  db.trips.set(trip.id, trip);
+
+  db.logAudit({
+    actorId: employeeId,
+    actorName: employeeName,
+    actorRole: 'HUB_AGENT',
+    domain: 'Capacity',
+    action: 'VERIFY_TRIP',
+    resourceType: 'Trip',
+    resourceId: trip.id,
+    details: {
+      flightNumber: trip.flightNumber,
+      pnrCode: trip.pnrCode,
+      travelerName: trip.travelerName,
+      availableWeightKg: trip.availableWeightKg,
+      previousStatus: 'SUBMITTED',
+      newStatus: 'VERIFIED',
+    },
+  });
+
+  const travelerNotif = db.pushNotification({
+    type: 'SYSTEM_ALERT',
+    titleAr: '✅ تم اعتماد وتوثيق رحلتك الجوية',
+    titleEn: '✅ Flight Trip Verified',
+    messageAr: `تم التحقق بنجاح من بيانات وتذكرة رحلتك (${trip.airline} - ${trip.flightNumber}). سعتك (${trip.availableWeightKg} كغم) باتت جاهزة الآن لمطابقة الطرود.`,
+    messageEn: `Your flight ${trip.flightNumber} has been verified and your capacity of ${trip.availableWeightKg} KG is now unlocked for parcel matching.`,
+    targetUserId: trip.travelerId,
+    referenceId: trip.id,
+    priority: 'NORMAL',
+  });
+  broadcastNotification(travelerNotif);
+
+  res.json({
+    success: true,
+    message: 'تم اعتماد وتوثيق الرحلة بنجاح / Trip verified successfully',
+    trip,
+  });
+});
+
+// Employee Portal: Reject Trip
+tripsRouter.post('/:id/reject', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { reason, employeeId = 'EMP-OPS-001', employeeName = 'Employee Reviewer' } = req.body;
+
+  if (!reason || !reason.trim()) {
+    return res.status(400).json({
+      success: false,
+      error: 'يرجى تقديم سبب تفصيلي لرفض الرحلة / Rejection reason is required',
+    });
+  }
+
+  const trip = db.trips.get(id);
+  if (!trip) {
+    return res.status(404).json({ success: false, error: 'Trip not found' });
+  }
+
+  trip.status = 'REJECTED';
+  trip.rejectionReason = reason;
+  db.trips.set(trip.id, trip);
+
+  db.logAudit({
+    actorId: employeeId,
+    actorName: employeeName,
+    actorRole: 'HUB_AGENT',
+    domain: 'Capacity',
+    action: 'REJECT_TRIP',
+    resourceType: 'Trip',
+    resourceId: trip.id,
+    details: {
+      flightNumber: trip.flightNumber,
+      pnrCode: trip.pnrCode,
+      travelerName: trip.travelerName,
+      reason,
+      newStatus: 'REJECTED',
+    },
+  });
+
+  const rejectNotif = db.pushNotification({
+    type: 'SYSTEM_ALERT',
+    titleAr: '❌ تم رفض تسجيل الرحلة الجوية',
+    titleEn: '❌ Flight Trip Registration Rejected',
+    messageAr: `نأسف، تم رفض تسجيل رحلتك (${trip.flightNumber}). السبب: "${reason}". يمكنك التواصل مع الدعم أو تصحيح التذكرة.`,
+    messageEn: `Trip registration for ${trip.flightNumber} was rejected. Reason: "${reason}".`,
+    targetUserId: trip.travelerId,
+    referenceId: trip.id,
+    priority: 'HIGH',
+  });
+  broadcastNotification(rejectNotif);
+
+  res.json({
+    success: true,
+    message: 'تم رفض الرحلة وإشعار المسافر / Trip rejected successfully',
+    trip,
+  });
+});
+
+// Employee Portal: Request Update from Traveler
+tripsRouter.post('/:id/request-update', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { notes, employeeId = 'EMP-OPS-001', employeeName = 'Employee Reviewer' } = req.body;
+
+  if (!notes || !notes.trim()) {
+    return res.status(400).json({
+      success: false,
+      error: 'يرجى كتابة الملاحظات والنواقص المطلوبة من المسافر / Update notes required',
+    });
+  }
+
+  const trip = db.trips.get(id);
+  if (!trip) {
+    return res.status(404).json({ success: false, error: 'Trip not found' });
+  }
+
+  trip.status = 'NEEDS_UPDATE';
+  trip.updateRequestNotes = notes;
+  db.trips.set(trip.id, trip);
+
+  db.logAudit({
+    actorId: employeeId,
+    actorName: employeeName,
+    actorRole: 'HUB_AGENT',
+    domain: 'Capacity',
+    action: 'REQUEST_TRIP_UPDATE',
+    resourceType: 'Trip',
+    resourceId: trip.id,
+    details: {
+      flightNumber: trip.flightNumber,
+      notes,
+      newStatus: 'NEEDS_UPDATE',
+    },
+  });
+
+  const updateNotif = db.pushNotification({
+    type: 'SYSTEM_ALERT',
+    titleAr: '⚠️ مطلوب تحديث بيانات رحلتك',
+    titleEn: '⚠️ Trip Information Update Requested',
+    messageAr: `طلب موظف التدقيق تحديث بعض بيانات رحلتك (${trip.flightNumber}). الملاحظات: "${notes}". يرجى فتح تفاصيل الرحلة وتصحيحها.`,
+    messageEn: `Update requested for trip ${trip.flightNumber}. Notes: "${notes}". Please update the details in your traveler portal.`,
+    targetUserId: trip.travelerId,
+    referenceId: trip.id,
+    priority: 'HIGH',
+  });
+  broadcastNotification(updateNotif);
+
+  res.json({
+    success: true,
+    message: 'تم إرسال طلب التحديث للمسافر / Update requested from traveler successfully',
+    trip,
+  });
+});
+
+// Send reminder to traveler to confirm trip (Status remains VERIFIED)
+tripsRouter.post('/:id/send-reminder', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { employeeId = 'EMP-HUB-01', employeeName = 'Hub Operator' } = req.body;
+  const trip = db.trips.get(id);
+
+  if (!trip) {
+    res.status(404).json({ success: false, error: 'الرحلة غير موجودة / Trip not found' });
+    return;
+  }
+
+  // Log audit without changing status
+  db.logAudit({
+    actorId: employeeId,
+    actorName: employeeName,
+    actorRole: 'HUB_AGENT',
+    domain: 'Capacity',
+    action: 'SEND_TRAVELER_REMINDER',
+    resourceType: 'Trip',
+    resourceId: trip.id,
+    details: {
+      flightNumber: trip.flightNumber,
+      status: trip.status,
+    },
+  });
+
+  const reminderNotif = db.pushNotification({
+    type: 'SYSTEM_ALERT',
+    titleAr: '🔔 تذكير: تأكيد استمرارية رحلتك الجوية',
+    titleEn: '🔔 Reminder: Confirm Trip Continuation',
+    messageAr: `تم اعتماد رحلتك (${trip.airline} - ${trip.flightNumber}) من قِبل إدارة الفرع. يرجى تأكيد استمرارية السفر ليتم بدء مطابقة الطرود مع سعتك المتبقية.`,
+    messageEn: `Your flight (${trip.airline} - ${trip.flightNumber}) is verified. Please confirm your readiness so compatible packages can be matched with your available luggage capacity.`,
+    targetUserId: trip.travelerId,
+    referenceId: trip.id,
+    priority: 'NORMAL',
+  });
+  broadcastNotification(reminderNotif);
+
+  res.json({
+    success: true,
+    message: 'تم إرسال التذكير للمسافر بنجاح / Reminder sent to traveler successfully',
+    trip,
+  });
+});
+
+

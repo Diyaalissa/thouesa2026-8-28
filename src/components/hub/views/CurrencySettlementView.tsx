@@ -10,9 +10,11 @@ import {
   Lock,
   Plus,
   Search,
+  AlertTriangle,
 } from 'lucide-react';
 import { Hub, Locale, DailyExchangeRate, SettlementRecord, EmployeeNavSection, Currency } from '../../../types';
 import { INITIAL_DAILY_EXCHANGE_RATES, INITIAL_SETTLEMENTS } from '../../../lib/hubOperationsData';
+import { calculateFxConversion } from '../../../lib/hubFinancialPreview';
 
 interface CurrencySettlementViewProps {
   currentHub: Hub;
@@ -43,28 +45,19 @@ export const CurrencySettlementView: React.FC<CurrencySettlementViewProps> = ({
   const [exchangeAmount, setExchangeAmount] = useState<number>(50);
   const [operationType, setOperationType] = useState<'CUSTOMER_PAYMENT' | 'TRAVELER_PAYOUT'>('CUSTOMER_PAYMENT');
 
-  // Find matching exchange rate
-  const directRate = rates.find((r) => r.baseCurrency === fromCurrency && r.quoteCurrency === toCurrency);
-  const reverseRate = rates.find((r) => r.baseCurrency === toCurrency && r.quoteCurrency === fromCurrency);
+  // Calculate FX Conversion using central zero-fallback engine (Rule 06 & 51)
+  const fxResult = calculateFxConversion(
+    exchangeAmount,
+    fromCurrency,
+    toCurrency,
+    operationType,
+    rates,
+    currentHub.countryCode || 'JO'
+  );
 
-  let convertedResult = 0;
-  let appliedRate = 1;
-
-  if (fromCurrency === toCurrency) {
-    convertedResult = exchangeAmount;
-    appliedRate = 1;
-  } else if (directRate) {
-    appliedRate = operationType === 'CUSTOMER_PAYMENT' ? directRate.sellRate : directRate.buyRate;
-    convertedResult = Number((exchangeAmount * appliedRate).toFixed(2));
-  } else if (reverseRate) {
-    const baseRate = operationType === 'CUSTOMER_PAYMENT' ? reverseRate.sellRate : reverseRate.buyRate;
-    appliedRate = baseRate !== 0 ? Number((1 / baseRate).toFixed(6)) : 1;
-    convertedResult = Number((exchangeAmount * appliedRate).toFixed(2));
-  } else {
-    // Fallback standard proxy calculation
-    appliedRate = fromCurrency === 'JOD' && toCurrency === 'DZD' ? 186.5 : fromCurrency === 'DZD' && toCurrency === 'JOD' ? 0.0052 : 1;
-    convertedResult = Number((exchangeAmount * appliedRate).toFixed(2));
-  }
+  const isBlocked = fxResult.blocked;
+  const appliedRate = fxResult.appliedRate;
+  const convertedResult = fxResult.convertedAmount;
 
   const handleRecordSettlement = () => {
     const settlementId = `STL-${Date.now().toString().slice(-6)}`;
@@ -278,33 +271,65 @@ export const CurrencySettlementView: React.FC<CurrencySettlementViewProps> = ({
                 </div>
               </div>
 
-              {/* Conversion Preview */}
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <div>
-                  <span className="text-[11px] text-slate-500 block">
-                    {isAr ? 'سعر الصرف المطبق:' : 'Applied Exchange Rate:'}
-                  </span>
-                  <div className="font-mono font-bold text-slate-800">
-                    1 {fromCurrency} = {appliedRate.toFixed(4)} {toCurrency}
+              {/* Conversion Preview or Block Message */}
+              {isBlocked ? (
+                <div className="p-4 bg-rose-50 rounded-xl border border-rose-200 flex items-start gap-3 text-xs text-rose-800">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-rose-900 mb-0.5 flex items-center gap-2">
+                      <span>{isAr ? 'لا يوجد سعر صرف نشط' : 'NO ACTIVE EXCHANGE RATE'}</span>
+                      <span className="px-2 py-0.5 rounded bg-rose-200 text-rose-950 text-[10px] font-mono font-bold">
+                        BLOCK
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-rose-700">
+                      {isAr
+                        ? `لا يتوفر سعر صرف معتمد ونشط للزوج ${fromCurrency}/${toCurrency}. تم حظر العملية تلقائياً لمنع الاعتماد على أسعار افتراضية غير حقيقية.`
+                        : `No active exchange rate found for ${fromCurrency}/${toCurrency}. Transaction is strictly blocked to prevent unverified default fallbacks.`}
+                    </p>
                   </div>
                 </div>
-                <div className="text-end">
-                  <span className="text-[11px] text-slate-500 block">
-                    {isAr ? 'المبلغ المستحق صرفه:' : 'Disbursed Amount:'}
-                  </span>
-                  <div className="text-xl font-black text-emerald-700 font-mono">
-                    {convertedResult.toLocaleString()} {toCurrency}
+              ) : (
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-slate-500 block">
+                      {isAr ? 'سعر الصرف المطبق:' : 'Applied Exchange Rate:'}
+                    </span>
+                    <div className="font-mono font-bold text-slate-800">
+                      1 {fromCurrency} = {appliedRate.toFixed(4)} {toCurrency}
+                    </div>
+                  </div>
+                  <div className="text-end">
+                    <span className="text-[11px] text-slate-500 block">
+                      {isAr ? 'المبلغ المستحق صرفه:' : 'Disbursed Amount:'}
+                    </span>
+                    <div className="text-xl font-black text-emerald-700 font-mono">
+                      {convertedResult.toLocaleString()} {toCurrency}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <button
                 type="button"
                 onClick={handleRecordSettlement}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2"
+                disabled={isBlocked}
+                className={`w-full py-3 font-bold rounded-xl text-xs shadow-md transition-colors flex items-center justify-center gap-2 ${
+                  isBlocked
+                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
+                }`}
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{isAr ? 'تأكيد وقيد التسوية في الخزينة' : 'Confirm & Post to Drawer'}</span>
+                <span>
+                  {isBlocked
+                    ? isAr
+                      ? 'التسوية محظورة (غياب سعر الصرف)'
+                      : 'Settlement Blocked (No Active FX Rate)'
+                    : isAr
+                    ? 'تأكيد وقيد التسوية في الخزينة'
+                    : 'Confirm & Post to Drawer'}
+                </span>
               </button>
             </div>
           </div>

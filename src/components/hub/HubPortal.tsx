@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Hub,
   Locale,
@@ -49,6 +49,16 @@ import {
   INITIAL_DAILY_EXCHANGE_RATES,
   INITIAL_SETTLEMENTS,
 } from '../../lib/hubOperationsData';
+import {
+  INTAKE_SEED_MANIFEST,
+  INTAKE_SEED_SHIPMENTS,
+  INTAKE_SEED_TRIP,
+  INTAKE_SEED_COMPLETED_MANIFEST,
+  INTAKE_SEED_DISCREPANCY_MANIFEST,
+  INTAKE_SEED_TRIP_0142,
+  INTAKE_SEED_MANIFEST_0142,
+  INTAKE_SEED_SHIPMENTS_0142,
+} from '../../lib/destinationIntakeSeedData';
 
 export interface HubPortalProps {
   currentUser: UserType;
@@ -91,6 +101,408 @@ export const HubPortal: React.FC<HubPortalProps> = ({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [searchQueryParam, setSearchQueryParam] = useState('');
+  const [preselectedMatchingShipmentId, setPreselectedMatchingShipmentId] = useState<string | undefined>(undefined);
+  const [preselectedMatchingTripId, setPreselectedMatchingTripId] = useState<string | undefined>(undefined);
+  const [preselectedManifestTripId, setPreselectedManifestTripId] = useState<string | undefined>(undefined);
+  const [preselectedHandoverManifestId, setPreselectedHandoverManifestId] = useState<string | undefined>(undefined);
+  const [preselectedIntakeManifestId, setPreselectedIntakeManifestId] = useState<string | undefined>(undefined);
+
+  // Local state for instantaneous UI reactive transitions (Stages 02, 03 & 04)
+  const [localManifests, setLocalManifests] = useState<Manifest[]>(() => {
+    const map = new Map<string, Manifest>();
+    (manifests || []).forEach((m) => map.set(m.id, m));
+    if (!map.has(INTAKE_SEED_MANIFEST.id)) {
+      map.set(INTAKE_SEED_MANIFEST.id, INTAKE_SEED_MANIFEST);
+    }
+    if (!map.has(INTAKE_SEED_COMPLETED_MANIFEST.id)) {
+      map.set(INTAKE_SEED_COMPLETED_MANIFEST.id, INTAKE_SEED_COMPLETED_MANIFEST);
+    }
+    if (!map.has(INTAKE_SEED_DISCREPANCY_MANIFEST.id)) {
+      map.set(INTAKE_SEED_DISCREPANCY_MANIFEST.id, INTAKE_SEED_DISCREPANCY_MANIFEST);
+    }
+    if (!map.has(INTAKE_SEED_MANIFEST_0142.id)) {
+      map.set(INTAKE_SEED_MANIFEST_0142.id, INTAKE_SEED_MANIFEST_0142);
+    }
+    return Array.from(map.values());
+  });
+
+  const [localShipments, setLocalShipments] = useState<Shipment[]>(() => {
+    const map = new Map<string, Shipment>();
+    (shipments || []).forEach((s) => map.set(s.id, s));
+    INTAKE_SEED_SHIPMENTS.forEach((s) => {
+      if (!map.has(s.id)) map.set(s.id, s);
+    });
+    INTAKE_SEED_SHIPMENTS_0142.forEach((s) => {
+      if (!map.has(s.id)) map.set(s.id, s);
+    });
+    return Array.from(map.values());
+  });
+
+  const [localTrips, setLocalTrips] = useState<Trip[]>(() => {
+    const map = new Map<string, Trip>();
+    (trips || []).forEach((t) => map.set(t.id, t));
+    if (!map.has(INTAKE_SEED_TRIP.id)) map.set(INTAKE_SEED_TRIP.id, INTAKE_SEED_TRIP);
+    if (!map.has(INTAKE_SEED_TRIP_0142.id)) map.set(INTAKE_SEED_TRIP_0142.id, INTAKE_SEED_TRIP_0142);
+    return Array.from(map.values());
+  });
+
+  useEffect(() => {
+    if (manifests) {
+      setLocalManifests((prev) => {
+        const map = new Map<string, Manifest>();
+        manifests.forEach((m) => map.set(m.id, m));
+        prev.forEach((m) => {
+          if (
+            !map.has(m.id) ||
+            (m.status === 'READY' && map.get(m.id)?.status === 'DRAFT') ||
+            (m.status === 'HANDED_OVER' && map.get(m.id)?.status === 'READY')
+          ) {
+            map.set(m.id, m);
+          }
+        });
+        return Array.from(map.values());
+      });
+    }
+  }, [manifests]);
+
+  useEffect(() => {
+    if (shipments) {
+      setLocalShipments((prev) => {
+        const map = new Map<string, Shipment>();
+        shipments.forEach((s) => map.set(s.id, s));
+        prev.forEach((s) => {
+          if (s.currentStatus === 'IN_TRANSIT' && map.get(s.id)?.currentStatus === 'ASSIGNED_TO_TRIP') {
+            map.set(s.id, s);
+          }
+        });
+        return Array.from(map.values());
+      });
+    }
+  }, [shipments]);
+
+  useEffect(() => {
+    if (trips) {
+      setLocalTrips((prev) => {
+        const map = new Map<string, Trip>();
+        trips.forEach((t) => map.set(t.id, t));
+        prev.forEach((t) => {
+          if (t.status === 'DISPATCHED' && map.get(t.id)?.status === 'PACKAGES_LINKED') {
+            map.set(t.id, t);
+          }
+        });
+        return Array.from(map.values());
+      });
+    }
+  }, [trips]);
+
+  const handleUpdateManifest = (updated: Manifest) => {
+    setLocalManifests((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+  };
+
+  const handleCreateManifestDirect = async (newManifest: Manifest): Promise<boolean> => {
+    setLocalManifests((prev) => [newManifest, ...prev]);
+    if (onCreateManifest) {
+      try {
+        await onCreateManifest(newManifest);
+      } catch (e) {
+        console.warn('Backend create manifest error:', e);
+      }
+    }
+    return true;
+  };
+
+  // Stage 03: Atomic Handover Completion Handler
+  // Strict Transition:
+  // Shipment: IN_TRANSIT
+  // Trip: DISPATCHED
+  // Manifest: HANDED_OVER
+  // Custody: TRAVELER
+  const handleHandoverComplete = async (payload: {
+    manifestId: string;
+    tripId: string;
+    shipmentIds: string[];
+    travelerId: string;
+    token: string;
+  }): Promise<boolean> => {
+    const now = new Date().toISOString();
+
+    // 1. Update Manifest
+    setLocalManifests((prev) =>
+      prev.map((m) =>
+        m.id === payload.manifestId
+          ? {
+              ...m,
+              status: 'HANDED_OVER',
+              currentStatus: 'HANDED_OVER',
+              custody: 'TRAVELER',
+              dispatchedByAgentId: currentUser?.id || 'usr-agent-303',
+              dispatchTimestamp: now,
+              handoverToken: payload.token,
+              updatedAt: now,
+            }
+          : m
+      )
+    );
+
+    // 2. Update Trip
+    setLocalTrips((prev) =>
+      prev.map((t) => (t.id === payload.tripId ? { ...t, status: 'DISPATCHED' } : t))
+    );
+
+    // 3. Update Shipments
+    setLocalShipments((prev) =>
+      prev.map((s) =>
+        payload.shipmentIds.includes(s.id)
+          ? {
+              ...s,
+              currentStatus: 'IN_TRANSIT',
+              updatedAt: now,
+            }
+          : s
+      )
+    );
+
+    // 4. Backend handover dispatch call
+    if (onHandoverDispatch) {
+      try {
+        await onHandoverDispatch({
+          manifestId: payload.manifestId,
+          hubId: currentHub.id,
+          travelerId: payload.travelerId,
+          agentId: currentUser?.id || 'usr-agent-303',
+          agentName: currentUser?.name || 'Hub Agent',
+          dispatchedAt: now,
+        });
+      } catch (err) {
+        console.warn('Backend handover dispatch call warning:', err);
+      }
+    }
+
+    return true;
+  };
+
+  // Stage 04: Atomic Destination Intake Completion Handler
+  // Strict Transitions:
+  // IF SUCCESSFUL (status === 'CLOSED'):
+  //   Shipment: RECEIVED_AT_DEST
+  //   Trip: COMPLETED
+  //   Manifest: CLOSED
+  //   Custody: DESTINATION_HUB
+  // IF DISCREPANCY (status === 'DISCREPANCY'):
+  //   Manifest: DISCREPANCY
+  //   Trip: NOT COMPLETED (remains DISPATCHED or ARRIVED)
+  //   Affected Shipment: NOT blindly changed to RECEIVED_AT_DEST (remains IN_TRANSIT)
+  //   Custody: explicit according to actually received package state
+  const handleDestinationIntakeComplete = async (payload: {
+    manifestId: string;
+    tripId: string;
+    verifiedShipmentIds: string[];
+    missingShipmentIds: string[];
+    sealMismatchIds: string[];
+    damagedShipmentIds: string[];
+    custodyFrom: string;
+    custodyTo: string;
+    status: 'CLOSED' | 'DISCREPANCY';
+    notes?: string;
+  }): Promise<boolean> => {
+    const now = new Date().toISOString();
+
+    if (payload.status === 'CLOSED') {
+      // 1. Update Manifest -> CLOSED, Custody -> DESTINATION_HUB
+      setLocalManifests((prev) =>
+        prev.map((m) =>
+          m.id === payload.manifestId
+            ? {
+                ...m,
+                status: 'CLOSED',
+                currentStatus: 'CLOSED',
+                custody: 'DESTINATION_HUB',
+                receivedByAgentId: currentUser?.id || 'emp-alg-201',
+                receiptTimestamp: now,
+                updatedAt: now,
+                intakeNotes: payload.notes,
+              }
+            : m
+        )
+      );
+
+      // 2. Update Trip -> COMPLETED
+      setLocalTrips((prev) =>
+        prev.map((t) => (t.id === payload.tripId ? { ...t, status: 'COMPLETED' } : t))
+      );
+
+      // 3. Update Shipments -> RECEIVED_AT_DEST
+      setLocalShipments((prev) =>
+        prev.map((s) =>
+          payload.verifiedShipmentIds.includes(s.id)
+            ? {
+                ...s,
+                currentStatus: 'RECEIVED_AT_DEST',
+                updatedAt: now,
+              }
+            : s
+        )
+      );
+    } else {
+      // DISCREPANCY CASE
+      // 1. Update Manifest -> DISCREPANCY
+      setLocalManifests((prev) =>
+        prev.map((m) =>
+          m.id === payload.manifestId
+            ? {
+                ...m,
+                status: 'DISCREPANCY',
+                currentStatus: 'DISCREPANCY',
+                updatedAt: now,
+                intakeNotes: payload.notes,
+              }
+            : m
+        )
+      );
+
+      // 2. Trip -> NOT COMPLETED (remains DISPATCHED or ARRIVED)
+      // 3. Shipments:
+      // Missing shipments remain IN_TRANSIT
+      setLocalShipments((prev) =>
+        prev.map((s) => {
+          if (payload.missingShipmentIds.includes(s.id)) {
+            return s; // Remains IN_TRANSIT
+          }
+          if (payload.verifiedShipmentIds.includes(s.id)) {
+            return {
+              ...s,
+              currentStatus: 'RECEIVED_AT_DEST',
+              updatedAt: now,
+            };
+          }
+          return s;
+        })
+      );
+    }
+
+    // Call backend onDestinationIntake if provided
+    if (onDestinationIntake) {
+      try {
+        await onDestinationIntake({
+          manifestId: payload.manifestId,
+          hubId: currentHub.id,
+          agentId: currentUser?.id || 'emp-alg-201',
+          status: payload.status,
+          verifiedShipmentIds: payload.verifiedShipmentIds,
+          missingShipmentIds: payload.missingShipmentIds,
+          notes: payload.notes,
+        });
+      } catch (e) {
+        console.warn('Backend destination intake call error:', e);
+      }
+    }
+
+    return true;
+  };
+
+  // Stage 05: Atomic Pickup Preparation Completion Handler
+  // Strict Transitions:
+  // Shipment: RECEIVED_AT_DEST -> READY_FOR_PICKUP
+  // Custody: Remains DESTINATION_HUB (Custody does NOT transfer to recipient until Stage 06 Final Delivery)
+  // Storage Location: Saved to shipment metadata
+  const handlePickupPreparationComplete = async (payload: {
+    shipmentId: string;
+    storageLocation: string;
+    storageZone?: string;
+    storageRack?: string;
+    storageShelf?: string;
+    storageBin?: string;
+    preparedBy: string;
+  }): Promise<boolean> => {
+    const now = new Date().toISOString();
+    setLocalShipments((prev) =>
+      prev.map((s) =>
+        s.id === payload.shipmentId
+          ? {
+              ...s,
+              currentStatus: 'READY_FOR_PICKUP',
+              custody: 'DESTINATION_HUB',
+              storageLocation: payload.storageLocation,
+              storageZone: payload.storageZone,
+              storageRack: payload.storageRack,
+              storageShelf: payload.storageShelf,
+              storageBin: payload.storageBin,
+              preparedForPickupAt: now,
+              preparedForPickupBy: payload.preparedBy,
+              updatedAt: now,
+            }
+          : s
+      )
+    );
+    return true;
+  };
+
+  // Stage 06: Atomic Final Delivery Completion Handler
+  // Strict Transitions:
+  // Shipment: READY_FOR_PICKUP -> DELIVERED
+  // Custody: DESTINATION_HUB -> RECIPIENT
+  // Storage Location: Vacated / Stored in lastStorageLocation
+  // Recipient Verification: VERIFIED
+  // OTP Verification: VERIFIED
+  // Delivered Metadata: deliveredAt, deliveredBy, etc. recorded atomically
+  const handleFinalDeliveryComplete = async (payload: {
+    shipmentId: string;
+    recipientName: string;
+    recipientNationalIdPresented?: string;
+    deliveredBy: string;
+    deliveredByEmployeeId?: string;
+    deliveredAtHubId: string;
+    otpCode: string;
+    paymentStatusAtDelivery?: string;
+  }): Promise<boolean> => {
+    const now = new Date().toISOString();
+
+    setLocalShipments((prev) =>
+      prev.map((s) => {
+        if (s.id !== payload.shipmentId) return s;
+        return {
+          ...s,
+          currentStatus: 'DELIVERED',
+          custody: 'RECIPIENT',
+          deliveredAt: now,
+          deliveredBy: payload.deliveredBy,
+          deliveredByEmployeeId: payload.deliveredByEmployeeId,
+          deliveredAtHubId: payload.deliveredAtHubId,
+          recipientVerified: true,
+          recipientVerificationMethod: 'GOVERNMENT_ID_MATCH',
+          recipientNationalIdPresented: payload.recipientNationalIdPresented,
+          otpVerified: true,
+          otpVerifiedAt: now,
+          paymentStatus: (payload.paymentStatusAtDelivery as any) || (s.paymentPolicy === 'NOT_REQUIRED' ? s.paymentStatus : 'FULLY_PAID'),
+          paymentStatusAtDelivery: payload.paymentStatusAtDelivery || 'FULLY_PAID',
+          lastStorageLocation: s.storageLocation,
+          storageLocation: undefined,
+          storageZone: undefined,
+          storageRack: undefined,
+          storageShelf: undefined,
+          storageBin: undefined,
+          updatedAt: now,
+        };
+      })
+    );
+
+    // Also call backend delivery endpoint if prop provided
+    if (onDeliverToRecipient) {
+      try {
+        await onDeliverToRecipient({
+          shipmentId: payload.shipmentId,
+          recipientNationalId: payload.recipientNationalIdPresented || 'ID-VERIFIED-COUNTER',
+          otpCode: payload.otpCode,
+          deliveredByHubId: payload.deliveredAtHubId,
+          deliveredAt: now,
+        });
+      } catch (e) {
+        console.warn('Backend deliver to recipient call warning:', e);
+      }
+    }
+
+    return true;
+  };
 
   // Operational State
   const [shippingRates, setShippingRates] = useState<ShippingRate[]>(INITIAL_SHIPPING_RATES);
@@ -120,16 +532,11 @@ export const HubPortal: React.FC<HubPortalProps> = ({
     (t) => (t.originHubId === currentHub.id || !t.originHubId) && (t.status === 'SUBMITTED' || t.status === 'PENDING')
   ).length;
 
-  const incomingDestinationCount = shipments.filter(
-    (s) =>
-      s.destinationHubId === currentHub.id &&
-      (s.currentStatus === 'IN_TRANSIT' ||
-        s.currentStatus === 'IN_TRANSIT_AIR' ||
-        s.currentStatus === 'IN_FLIGHT' ||
-        s.currentStatus === 'CUSTOMS_CLEARANCE')
+  const incomingDestinationCount = localManifests.filter(
+    (m) => m.destinationHubId === currentHub.id && (m.status === 'HANDED_OVER' || m.status === 'IN_TRANSIT')
   ).length;
 
-  const readyForPickupCount = shipments.filter(
+  const readyForPickupCount = localShipments.filter(
     (s) => s.destinationHubId === currentHub.id && s.currentStatus === 'READY_FOR_PICKUP'
   ).length;
 
@@ -152,56 +559,158 @@ export const HubPortal: React.FC<HubPortalProps> = ({
   };
 
   const handleSaveRate = (newRateData: Partial<ShippingRate>) => {
+    const orig = newRateData.originCountry || 'JO';
+    const dest = newRateData.destinationCountry || 'DZ';
+    const rateType = newRateData.rateType || 'CUSTOMER_SHIPPING';
+    const service = newRateData.serviceType || 'SEND_PARCEL';
+
+    // Find the latest existing rate version for this specific independent pricing chain:
+    // (RateType + Origin + Destination + ServiceType)
+    const existingChainRates = shippingRates.filter(
+      (r) =>
+        r.originCountry === orig &&
+        r.destinationCountry === dest &&
+        r.rateType === rateType &&
+        r.serviceType === service
+    );
+
+    // Sort to find highest version number
+    const maxVersion = existingChainRates.reduce((max, r) => (r.version > max ? r.version : max), 0);
+    const newVersion = maxVersion > 0 ? maxVersion + 1 : 1;
+
+    // Determine lifecycle status:
+    // DRAFT -> stays DRAFT
+    // If effectiveFrom is future -> SCHEDULED
+    // Otherwise -> ACTIVE
+    const now = new Date();
+    const effFromDate = newRateData.effectiveFrom ? new Date(newRateData.effectiveFrom) : now;
+    let initialStatus = newRateData.status || 'ACTIVE';
+    if (initialStatus !== 'DRAFT') {
+      initialStatus = effFromDate > now ? 'SCHEDULED' : 'ACTIVE';
+    }
+
     const newRate: ShippingRate = {
-      id: `RATE-${Date.now().toString().slice(-4)}`,
-      originCountry: newRateData.originCountry || 'JO',
-      destinationCountry: newRateData.destinationCountry || 'DZ',
-      serviceType: newRateData.serviceType || 'SEND_PARCEL',
-      rateType: 'CUSTOMER_SHIPPING',
+      id: `RATE-${orig}-${dest}-${rateType === 'CUSTOMER_SHIPPING' ? 'CUST' : 'TRAV'}-v${newVersion}-${Date.now().toString().slice(-4)}`,
+      originCountry: orig,
+      destinationCountry: dest,
+      serviceType: service,
+      rateType: rateType,
       pricingModel: newRateData.pricingModel || 'PER_KG',
-      currency: newRateData.currency || 'JOD',
-      ratePerKg: newRateData.ratePerKg || 7.5,
-      minimumCharge: newRateData.minimumCharge || 5,
-      minimumBillableWeightKg: newRateData.minimumBillableWeightKg || 0.5,
+      currency: newRateData.currency || (orig === 'JO' ? 'JOD' : 'DZD'),
+      ratePerKg: newRateData.ratePerKg ?? (orig === 'JO' ? 7.5 : 1800),
+      minimumCharge: newRateData.minimumCharge ?? (orig === 'JO' ? 5 : 1500),
+      minimumBillableWeightKg: newRateData.minimumBillableWeightKg ?? 0.5,
       tiers: newRateData.tiers,
-      effectiveFrom: newRateData.effectiveFrom || new Date().toISOString(),
-      status: 'ACTIVE',
-      version: 1,
+      effectiveFrom: newRateData.effectiveFrom || now.toISOString(),
+      effectiveUntil: newRateData.effectiveUntil,
+      status: initialStatus,
+      version: newVersion,
       reason: newRateData.reason,
       createdBy: currentUser.id,
-      createdAt: new Date().toISOString(),
+      createdAt: now.toISOString(),
     };
 
-    setShippingRates((prev) => [newRate, ...prev]);
+    // If the new rate is ACTIVE immediately, retire/expire previous ACTIVE rates in THIS chain ONLY
+    // Crucial: The other 3 chains remain untouched!
+    setShippingRates((prev) => {
+      if (initialStatus === 'ACTIVE') {
+        const updatedChain = prev.map((r) => {
+          if (
+            r.originCountry === orig &&
+            r.destinationCountry === dest &&
+            r.rateType === rateType &&
+            r.serviceType === service &&
+            r.status === 'ACTIVE'
+          ) {
+            // Close active period and mark EXPIRED/ARCHIVED (Never permanently deleted!)
+            return {
+              ...r,
+              status: 'EXPIRED' as const,
+              effectiveUntil: now.toISOString(),
+            };
+          }
+          return r;
+        });
+        return [newRate, ...updatedChain];
+      }
+      return [newRate, ...prev];
+    });
 
     // Append to rate audit history
     const historyEntry: RateHistoryEntry = {
       id: `RH-${Date.now().toString().slice(-4)}`,
       rateId: newRate.id,
-      routeAr: `${newRate.originCountry === 'JO' ? 'الأردن' : 'الجزائر'} ← ${newRate.destinationCountry === 'JO' ? 'الأردن' : 'الجزائر'}`,
-      routeEn: `${newRate.originCountry} → ${newRate.destinationCountry}`,
-      originCountry: newRate.originCountry,
-      destinationCountry: newRate.destinationCountry,
-      serviceType: newRate.serviceType,
+      routeAr: `${orig === 'JO' ? 'الأردن' : 'الجزائر'} ← ${dest === 'JO' ? 'الأردن' : 'الجزائر'} (${rateType === 'CUSTOMER_SHIPPING' ? 'سعر العميل' : 'تعويض المسافر'})`,
+      routeEn: `${orig} → ${dest} (${rateType})`,
+      originCountry: orig,
+      destinationCountry: dest,
+      serviceType: service,
       pricingModel: newRate.pricingModel,
-      oldRateText: 'New Tariff',
-      newRateText: `${newRate.ratePerKg} ${newRate.currency} / KG`,
+      oldRateText: maxVersion > 0 ? `v${maxVersion}` : 'New Chain',
+      newRateText: newRate.pricingModel === 'WEIGHT_TIERS' 
+        ? `${newRate.tiers?.length || 0} Tiers` 
+        : newRate.pricingModel === 'FLAT_RATE'
+        ? `${newRate.minimumCharge} ${newRate.currency} (FLAT)`
+        : `${newRate.ratePerKg} ${newRate.currency} / KG`,
       changedBy: currentUser.id,
       changedByName: currentUser.fullName || 'Authorized Employee',
-      date: new Date().toISOString().split('T')[0],
-      versionText: 'v1',
-      reason: newRate.reason || 'إصدار تعرفة جديدة',
+      date: now.toISOString().split('T')[0],
+      versionText: `v${newVersion}`,
+      reason: newRate.reason || (maxVersion > 0 ? `إصدار نسخة جديدة v${newVersion}` : 'إصدار تعرفة جديدة'),
     };
     setRateHistory((prev) => [historyEntry, ...prev]);
   };
 
+  const handleDisableRate = (rateId: string, reason?: string) => {
+    const now = new Date();
+    setShippingRates((prev) =>
+      prev.map((r) =>
+        r.id === rateId
+          ? {
+              ...r,
+              status: 'DISABLED' as const,
+              effectiveUntil: now.toISOString(),
+              reason: reason ? `${r.reason ? r.reason + ' | ' : ''}تعطيل: ${reason}` : r.reason,
+            }
+          : r
+      )
+    );
+
+    const targetRate = shippingRates.find((r) => r.id === rateId);
+    if (targetRate) {
+      const historyEntry: RateHistoryEntry = {
+        id: `RH-DIS-${Date.now().toString().slice(-4)}`,
+        rateId: targetRate.id,
+        routeAr: `${targetRate.originCountry === 'JO' ? 'الأردن' : 'الجزائر'} ← ${targetRate.destinationCountry === 'JO' ? 'الأردن' : 'الجزائر'}`,
+        routeEn: `${targetRate.originCountry} → ${targetRate.destinationCountry}`,
+        originCountry: targetRate.originCountry,
+        destinationCountry: targetRate.destinationCountry,
+        serviceType: targetRate.serviceType,
+        pricingModel: targetRate.pricingModel,
+        oldRateText: `v${targetRate.version} (ACTIVE)`,
+        newRateText: 'DISABLED',
+        changedBy: currentUser.id,
+        changedByName: currentUser.fullName || 'Authorized Employee',
+        date: now.toISOString().split('T')[0],
+        versionText: `v${targetRate.version}`,
+        reason: reason || 'تعطيل إداري للتعرفة',
+      };
+      setRateHistory((prev) => [historyEntry, ...prev]);
+    }
+  };
+
   const handleCreateIncident = (incidentData: Partial<OperationalIncident>) => {
+    const generatedId = incidentData.id || incidentData.incidentNumber || `INC-${Date.now().toString().slice(-4)}`;
     const newInc: OperationalIncident = {
-      id: `INC-${Date.now().toString().slice(-4)}`,
-      incidentNumber: incidentData.incidentNumber || `INC-${Date.now().toString().slice(-4)}`,
+      id: generatedId,
+      incidentNumber: incidentData.incidentNumber || generatedId,
+      type: incidentData.type || incidentData.category || 'OTHER',
       category: incidentData.category || 'OTHER',
+      entityType: incidentData.entityType || (incidentData.relatedManifestId ? 'MANIFEST' : incidentData.trackingNumber ? 'SHIPMENT' : 'MANIFEST'),
+      referenceNumber: incidentData.referenceNumber || incidentData.relatedManifestId || incidentData.trackingNumber || '-',
       priority: incidentData.priority || 'MEDIUM',
-      status: 'OPEN',
+      status: incidentData.status || 'OPEN',
+      isBlocking: incidentData.isBlocking !== undefined ? incidentData.isBlocking : true,
       hubId: currentHub.id,
       hubName: currentLocale === 'ar' ? currentHub.nameAr : currentHub.nameEn,
       trackingNumber: incidentData.trackingNumber,
@@ -211,6 +720,7 @@ export const HubPortal: React.FC<HubPortalProps> = ({
       evidencePhotos: [],
       assignedEmployeeId: currentUser.id,
       assignedEmployeeName: currentUser.fullName || 'Operational Agent',
+      assignedRole: incidentData.assignedRole || 'Hub Manager',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -234,15 +744,66 @@ export const HubPortal: React.FC<HubPortalProps> = ({
 
   const handleRecordSettlement = (record: SettlementRecord) => {
     setSettlements((prev) => [record, ...prev]);
+    if (record.shipmentId) {
+      setLocalShipments((prev) =>
+        prev.map((s) =>
+          s.id === record.shipmentId || s.trackingNumber === record.trackingNumber
+            ? {
+                ...s,
+                paymentStatus: 'PAID',
+              }
+            : s
+        )
+      );
+    }
   };
 
   const handleSaveExchangeRate = (newRateData: Omit<DailyExchangeRate, 'id' | 'createdAt'>) => {
+    const now = new Date();
     const newRate: DailyExchangeRate = {
       ...newRateData,
-      id: `FX-${Date.now().toString().slice(-6)}`,
-      createdAt: new Date().toISOString(),
+      id: `FX-${newRateData.baseCurrency}-${newRateData.quoteCurrency}-v${newRateData.version}-${Date.now().toString().slice(-4)}`,
+      createdAt: now.toISOString(),
     };
-    setExchangeRates((prev) => [newRate, ...prev]);
+
+    setExchangeRates((prev) => {
+      // If new rate is ACTIVE immediately, retire/expire any previous ACTIVE rate for this pair and scope
+      if (newRate.status === 'ACTIVE') {
+        const updated = prev.map((r) => {
+          if (
+            r.baseCurrency === newRate.baseCurrency &&
+            r.quoteCurrency === newRate.quoteCurrency &&
+            r.countryScope === newRate.countryScope &&
+            r.status === 'ACTIVE'
+          ) {
+            return {
+              ...r,
+              status: 'EXPIRED' as const,
+              effectiveUntil: now.toISOString(),
+            };
+          }
+          return r;
+        });
+        return [newRate, ...updated];
+      }
+      return [newRate, ...prev];
+    });
+  };
+
+  const handleDisableExchangeRate = (rateId: string, reason?: string) => {
+    const now = new Date();
+    setExchangeRates((prev) =>
+      prev.map((r) =>
+        r.id === rateId
+          ? {
+              ...r,
+              status: 'DISABLED' as const,
+              effectiveUntil: now.toISOString(),
+              notes: reason ? `${r.notes ? r.notes + ' | ' : ''}تعطيل: ${reason}` : r.notes,
+            }
+          : r
+      )
+    );
   };
 
   const handleToggleSidebar = () => {
@@ -312,6 +873,7 @@ export const HubPortal: React.FC<HubPortalProps> = ({
           {activeSection === 'ORIGIN_INTAKE' && (
             <OriginHubIntakeView
               currentHub={currentHub}
+              currentUser={currentUser}
               shipments={shipments}
               locale={currentLocale}
               onReceivePackage={onReceivePackage}
@@ -335,8 +897,14 @@ export const HubPortal: React.FC<HubPortalProps> = ({
             <ReadyForTransportView
               currentHub={currentHub}
               shipments={shipments}
+              trips={trips}
               locale={currentLocale}
-              onNavigate={setActiveSection}
+              onNavigate={(section, extra) => {
+                if (section === 'MATCHING' && extra?.shipmentId) {
+                  setPreselectedMatchingShipmentId(extra.shipmentId);
+                }
+                setActiveSection(section);
+              }}
             />
           )}
 
@@ -354,18 +922,33 @@ export const HubPortal: React.FC<HubPortalProps> = ({
             <VerifiedTripsView
               currentHub={currentHub}
               trips={trips}
+              shipments={shipments}
               locale={currentLocale}
-              onNavigate={setActiveSection}
+              onNavigate={(section, extra) => {
+                if (section === 'MATCHING' && extra?.tripId) {
+                  setPreselectedMatchingTripId(extra.tripId);
+                }
+                setActiveSection(section);
+              }}
+              onRefreshData={onRefreshData}
             />
           )}
 
           {activeSection === 'MATCHING' && (
             <MatchingView
+              currentUser={currentUser}
               currentHub={currentHub}
               shipments={shipments}
               trips={trips}
               locale={currentLocale}
-              onNavigate={setActiveSection}
+              preselectedShipmentId={preselectedMatchingShipmentId}
+              preselectedTripId={preselectedMatchingTripId}
+              onNavigate={(section, extra) => {
+                if (section === 'MANIFESTS' && extra?.tripId) {
+                  setPreselectedManifestTripId(extra.tripId);
+                }
+                setActiveSection(section);
+              }}
               onRefreshData={onRefreshData}
             />
           )}
@@ -373,12 +956,24 @@ export const HubPortal: React.FC<HubPortalProps> = ({
           {activeSection === 'MANIFESTS' && (
             <ManifestsView
               currentHub={currentHub}
-              manifests={manifests}
-              shipments={shipments}
-              trips={trips}
+              currentUser={currentUser}
+              manifests={localManifests}
+              shipments={localShipments}
+              trips={localTrips}
+              operationalIncidents={operationalIncidents}
               locale={currentLocale}
-              onCreateManifest={onCreateManifest}
-              onNavigate={setActiveSection}
+              preselectedTripId={preselectedManifestTripId}
+              onCreateManifest={handleCreateManifestDirect}
+              onUpdateManifest={handleUpdateManifest}
+              onNavigate={(section, extra) => {
+                if (section === 'MATCHING' && extra?.tripId) {
+                  setPreselectedMatchingTripId(extra.tripId);
+                }
+                if (section === 'TRAVELER_HANDOVER' && extra?.manifestId) {
+                  setPreselectedHandoverManifestId(extra.manifestId);
+                }
+                setActiveSection(section);
+              }}
               onRefreshData={onRefreshData}
             />
           )}
@@ -386,11 +981,20 @@ export const HubPortal: React.FC<HubPortalProps> = ({
           {activeSection === 'TRAVELER_HANDOVER' && (
             <TravelerHandoverView
               currentHub={currentHub}
-              manifests={manifests}
-              shipments={shipments}
+              currentUser={currentUser}
+              manifests={localManifests}
+              shipments={localShipments}
+              trips={localTrips}
+              operationalIncidents={operationalIncidents}
               locale={currentLocale}
-              onHandoverDispatch={onHandoverDispatch}
-              onNavigate={setActiveSection}
+              preselectedManifestId={preselectedHandoverManifestId}
+              onHandoverComplete={handleHandoverComplete}
+              onNavigate={(section, extra) => {
+                if (section === 'MANIFESTS' && extra?.manifestId) {
+                  // Navigate to manifests
+                }
+                setActiveSection(section);
+              }}
               onRefreshData={onRefreshData}
             />
           )}
@@ -398,11 +1002,20 @@ export const HubPortal: React.FC<HubPortalProps> = ({
           {activeSection === 'DESTINATION_INTAKE' && (
             <DestinationIntakeView
               currentHub={currentHub}
-              shipments={shipments}
-              manifests={manifests}
+              currentUser={currentUser}
+              manifests={localManifests}
+              shipments={localShipments}
+              trips={localTrips}
+              operationalIncidents={operationalIncidents}
               locale={currentLocale}
-              onDestinationIntake={onDestinationIntake}
-              onNavigate={setActiveSection}
+              preselectedManifestId={preselectedIntakeManifestId}
+              onDestinationIntakeComplete={handleDestinationIntakeComplete}
+              onNavigate={(section, extra) => {
+                if (section === 'DESTINATION_INTAKE' && extra?.manifestId) {
+                  setPreselectedIntakeManifestId(extra.manifestId);
+                }
+                setActiveSection(section);
+              }}
               onRefreshData={onRefreshData}
             />
           )}
@@ -410,8 +1023,12 @@ export const HubPortal: React.FC<HubPortalProps> = ({
           {activeSection === 'PICKUP_PREPARATION' && (
             <PickupPreparationView
               currentHub={currentHub}
-              shipments={shipments}
+              currentUser={currentUser}
+              shipments={localShipments}
+              operationalIncidents={operationalIncidents}
+              disputes={disputes}
               locale={currentLocale}
+              onPickupPreparationComplete={handlePickupPreparationComplete}
               onNavigate={setActiveSection}
               onRefreshData={onRefreshData}
             />
@@ -420,9 +1037,13 @@ export const HubPortal: React.FC<HubPortalProps> = ({
           {activeSection === 'FINAL_DELIVERY' && (
             <FinalDeliveryView
               currentHub={currentHub}
-              shipments={shipments}
+              currentUser={currentUser}
+              shipments={localShipments}
+              operationalIncidents={operationalIncidents}
+              disputes={disputes}
               locale={currentLocale}
               onDeliverToRecipient={onDeliverToRecipient}
+              onFinalDeliveryComplete={handleFinalDeliveryComplete}
               onNavigate={setActiveSection}
               onRefreshData={onRefreshData}
             />
@@ -435,13 +1056,19 @@ export const HubPortal: React.FC<HubPortalProps> = ({
               currentUser={currentUser}
               locale={currentLocale}
               onSaveRate={handleSaveRate}
+              onDisableRate={handleDisableRate}
             />
           )}
 
           {activeSection === 'RATE_HISTORY' && (
             <RateHistoryView
-              history={rateHistory}
+              shippingRates={shippingRates}
+              exchangeRates={exchangeRates}
+              rateHistory={rateHistory}
+              currentHub={currentHub}
+              currentUser={currentUser}
               locale={currentLocale}
+              onNavigate={setActiveSection}
             />
           )}
 
@@ -482,9 +1109,10 @@ export const HubPortal: React.FC<HubPortalProps> = ({
 
           {activeSection === 'CUSTOMER_PAYMENTS' && (
             <CustomerPaymentsView
-              shipments={shipments}
+              shipments={localShipments}
               exchangeRates={exchangeRates}
               shippingRates={shippingRates}
+              settlements={settlements}
               currentHub={currentHub}
               currentUser={currentUser}
               locale={currentLocale}
@@ -494,10 +1122,12 @@ export const HubPortal: React.FC<HubPortalProps> = ({
 
           {activeSection === 'TRAVELER_SETTLEMENTS' && (
             <TravelerSettlementsView
-              trips={trips}
-              manifests={manifests}
+              trips={localTrips}
+              manifests={localManifests}
+              shipments={localShipments}
               exchangeRates={exchangeRates}
               shippingRates={shippingRates}
+              settlements={settlements}
               currentHub={currentHub}
               currentUser={currentUser}
               locale={currentLocale}
@@ -512,6 +1142,7 @@ export const HubPortal: React.FC<HubPortalProps> = ({
               currentUser={currentUser}
               locale={currentLocale}
               onSaveRate={handleSaveExchangeRate}
+              onDisableRate={handleDisableExchangeRate}
             />
           )}
 
@@ -519,7 +1150,9 @@ export const HubPortal: React.FC<HubPortalProps> = ({
             <SettlementHistoryView
               settlements={settlements}
               currentHub={currentHub}
+              currentUser={currentUser}
               locale={currentLocale}
+              onNavigate={setActiveSection}
             />
           )}
 

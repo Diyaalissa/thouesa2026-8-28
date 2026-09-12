@@ -99,9 +99,9 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
-      log.referenceId.toLowerCase().includes(q) ||
-      log.employeeName.toLowerCase().includes(q) ||
-      log.description.toLowerCase().includes(q)
+      (log.referenceId || '').toLowerCase().includes(q) ||
+      (log.employeeName || '').toLowerCase().includes(q) ||
+      (log.description || '').toLowerCase().includes(q)
     );
   });
 

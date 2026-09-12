@@ -159,6 +159,30 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         colorClasses = 'bg-orange-50 text-orange-700 border-orange-200';
         Icon = AlertTriangle;
         break;
+      case 'PACKAGES_LINKED':
+        labelAr = 'طرود مرتبطة بالرحلة';
+        labelEn = 'Packages Linked';
+        colorClasses = 'bg-blue-50 text-blue-700 border-blue-200';
+        Icon = Plane;
+        break;
+      case 'DISPATCHED':
+        labelAr = 'غادرت الفرع مع المسافر';
+        labelEn = 'Dispatched with Traveler';
+        colorClasses = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+        Icon = Plane;
+        break;
+      case 'CANCELLED':
+        labelAr = 'ملغاة';
+        labelEn = 'Cancelled';
+        colorClasses = 'bg-rose-50 text-rose-700 border-rose-200';
+        Icon = XCircle;
+        break;
+      case 'EMERGENCY_UNASSIGNED':
+        labelAr = 'إلغاء طارئ';
+        labelEn = 'Emergency Unassigned';
+        colorClasses = 'bg-red-100 text-red-800 border-red-300';
+        Icon = AlertTriangle;
+        break;
       case 'REJECTED':
         labelAr = 'مرفوضة';
         labelEn = 'Rejected';
@@ -213,6 +237,19 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         colorClasses = 'bg-emerald-50 text-emerald-700 border-emerald-200';
         Icon = CheckCircle2;
         break;
+      case 'DISCREPANCY':
+      case 'DISCREPANCY_FLAGGED':
+        labelAr = 'فروقات / تعليق أمني';
+        labelEn = 'Discrepancy Flagged';
+        colorClasses = 'bg-rose-50 text-rose-700 border-rose-200';
+        Icon = AlertTriangle;
+        break;
+      case 'CANCELLED':
+        labelAr = 'ملغي';
+        labelEn = 'Cancelled';
+        colorClasses = 'bg-slate-100 text-slate-500 border-slate-300';
+        Icon = XCircle;
+        break;
       default:
         break;
     }
@@ -242,6 +279,12 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         colorClasses = 'bg-emerald-50 text-emerald-700 border-emerald-200';
         Icon = CheckCircle2;
         break;
+      case 'CLOSED':
+        labelAr = 'مغلق ومؤرشف';
+        labelEn = 'Closed';
+        colorClasses = 'bg-slate-100 text-slate-700 border-slate-300';
+        Icon = ShieldCheck;
+        break;
       case 'ESCALATED':
         labelAr = 'مرفوع للإدارة التشغيلية';
         labelEn = 'Escalated';
@@ -259,9 +302,28 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         colorClasses = 'bg-emerald-50 text-emerald-700 border-emerald-200';
         Icon = CheckCircle2;
         break;
+      case 'SCHEDULED':
+        labelAr = 'مجدولة';
+        labelEn = 'Scheduled';
+        colorClasses = 'bg-sky-50 text-sky-700 border-sky-200';
+        Icon = Clock;
+        break;
+      case 'DRAFT':
+        labelAr = 'مسودة';
+        labelEn = 'Draft';
+        colorClasses = 'bg-amber-50 text-amber-700 border-amber-200';
+        Icon = FileText;
+        break;
+      case 'EXPIRED':
+        labelAr = 'منتهية الصلاحية';
+        labelEn = 'Expired';
+        colorClasses = 'bg-rose-50 text-rose-700 border-rose-200';
+        Icon = XCircle;
+        break;
+      case 'DISABLED':
       case 'INACTIVE':
         labelAr = 'معطلة';
-        labelEn = 'Inactive';
+        labelEn = 'Disabled';
         colorClasses = 'bg-slate-100 text-slate-700 border-slate-200';
         Icon = PauseCircle;
         break;

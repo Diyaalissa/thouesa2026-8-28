@@ -7,10 +7,12 @@ import {
   ArrowRight,
   Sparkles,
   CheckCircle2,
+  AlertTriangle,
   Info,
 } from 'lucide-react';
 import { Hub, Locale, EmployeeNavSection, ShippingRate, DailyExchangeRate } from '../../../types';
 import { INITIAL_SHIPPING_RATES, INITIAL_DAILY_EXCHANGE_RATES } from '../../../lib/hubOperationsData';
+import { calculateFxConversion } from '../../../lib/hubFinancialPreview';
 
 interface PricingCalculatorViewProps {
   currentHub: Hub;
@@ -52,34 +54,47 @@ export const PricingCalculatorView: React.FC<PricingCalculatorViewProps> = ({
   const volumetricWeightKg = Number(((lengthCm * widthCm * heightCm) / 5000).toFixed(2));
   const chargeableWeightKg = Math.max(actualWeightKg, volumetricWeightKg);
 
-  // Find rate card from dynamic shippingRates
-  const rateCard =
-    shippingRates.find(
-      (r) => r.originCountry === originCountry && r.destinationCountry === destCountry && r.rateType === 'CUSTOMER_SHIPPING'
-    ) || shippingRates[0] || INITIAL_SHIPPING_RATES[0];
+  // Strict rate card lookup: NO hardcoded fallback. Must match Route, CUSTOMER_SHIPPING, and ACTIVE status.
+  const rateCard = shippingRates.find(
+    (r) =>
+      r.originCountry === originCountry &&
+      r.destinationCountry === destCountry &&
+      r.rateType === 'CUSTOMER_SHIPPING' &&
+      (r.status === 'ACTIVE' || (!r.status && new Date(r.effectiveFrom) <= new Date()))
+  );
 
-  // Base calculation
-  const perKgRate = rateCard.ratePerKg;
-  const minCharge = rateCard.minimumCharge;
-  let basePriceJod = Math.max(minCharge, chargeableWeightKg * perKgRate);
+  // Calculation only if active rateCard is found
+  const hasActiveRate = !!rateCard;
+  const perKgRate = rateCard ? rateCard.ratePerKg : 0;
+  const minCharge = rateCard ? rateCard.minimumCharge : 0;
+  const rateCurrency = rateCard ? rateCard.currency : (originCountry === 'JO' ? 'JOD' : 'DZD');
+  let basePriceJod = hasActiveRate ? Math.max(minCharge, chargeableWeightKg * perKgRate) : 0;
 
   // Category markup
   let categoryMarkupJod = 0;
-  if (category === 'express') categoryMarkupJod = 5;
-  if (category === 'fragile') categoryMarkupJod = 4;
+  if (category === 'express') categoryMarkupJod = originCountry === 'JO' ? 5 : 1000;
+  if (category === 'fragile') categoryMarkupJod = originCountry === 'JO' ? 4 : 800;
 
   // Insurance calculation (2% of declared value)
   const insuranceFeeJod = isInsured ? Number((declaredValue * 0.02).toFixed(2)) : 0;
 
   // Subtotal before discount
-  const subtotalJod = basePriceJod + categoryMarkupJod + insuranceFeeJod;
+  const subtotalJod = hasActiveRate ? basePriceJod + categoryMarkupJod + insuranceFeeJod : 0;
   const discountAmountJod = Number(((subtotalJod * discountPercent) / 100).toFixed(2));
   const finalTotalJod = Math.max(0, Number((subtotalJod - discountAmountJod).toFixed(2)));
 
-  // Dynamic currency conversions from exchangeRates
-  const dzdPair = exchangeRates.find((r) => (r.baseCurrency === 'DZD' && r.quoteCurrency === 'JOD') || (r.baseCurrency === 'JOD' && r.quoteCurrency === 'DZD'));
-  const fxDzdRate = dzdPair ? (dzdPair.baseCurrency === 'DZD' ? (dzdPair.buyRate > 0 ? 1 / dzdPair.buyRate : 188.0) : dzdPair.sellRate) : 188.0;
-  const finalTotalDzd = Math.round(finalTotalJod * fxDzdRate);
+  // Dynamic currency conversions from exchangeRates using central FX engine (zero hardcoded fallback)
+  const targetCounterCurrency: 'DZD' | 'JOD' = rateCurrency === 'JOD' ? 'DZD' : 'JOD';
+  const fxResult = calculateFxConversion(
+    finalTotalJod,
+    rateCurrency,
+    targetCounterCurrency,
+    'CUSTOMER_PAYMENT',
+    exchangeRates,
+    originCountry
+  );
+  const isFxBlocked = fxResult.blocked;
+  const finalTotalCounter = fxResult.convertedAmount;
 
   return (
     <div className="space-y-6">
@@ -312,46 +327,82 @@ export const PricingCalculatorView: React.FC<PricingCalculatorViewProps> = ({
               <span>{isAr ? 'عرض السعر الرسمي المعتمد' : 'Official Rate Quotation'}</span>
             </h2>
 
-            <div className="space-y-2.5 text-xs">
-              <div className="flex justify-between text-slate-600">
-                <span>{isAr ? 'رسوم الشحن الأساسية للوزن المحاسبي:' : 'Base Shipping Fee:'}</span>
-                <span className="font-mono font-bold text-slate-900">{basePriceJod.toFixed(2)} JOD</span>
+            {!hasActiveRate ? (
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 space-y-2">
+                <div className="flex items-center gap-2 font-bold">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{isAr ? 'لا توجد تعرفة شحن عميل فعالة لهذا المسار' : 'No active customer shipping rate for this route'}</span>
+                </div>
+                <p className="text-rose-600">
+                  {isAr
+                    ? `المسار ${originCountry} ← ${destCountry} لا يحتوي على تعرفة فعالة (ACTIVE). تم حظر التسعير تلقائياً وتجنب أي تعرفة وهمية.`
+                    : `Route ${originCountry} → ${destCountry} lacks an active rate. Pricing blocked; hardcoded fallback prevented.`}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('SHIPPING_RATES')}
+                  className="mt-1 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-[11px] cursor-pointer"
+                >
+                  {isAr ? 'إدارة أسعار الشحن' : 'Manage Shipping Rates'}
+                </button>
               </div>
-
-              {categoryMarkupJod > 0 && (
+            ) : (
+              <div className="space-y-2.5 text-xs">
                 <div className="flex justify-between text-slate-600">
-                  <span>{isAr ? 'رسوم التصنيف الإضافية:' : 'Category Markup:'}</span>
-                  <span className="font-mono font-bold text-slate-900">+{categoryMarkupJod.toFixed(2)} JOD</span>
+                  <span>{isAr ? 'رسوم الشحن الأساسية للوزن المحاسبي:' : 'Base Shipping Fee:'}</span>
+                  <span className="font-mono font-bold text-slate-900">{basePriceJod.toFixed(2)} {rateCurrency}</span>
                 </div>
-              )}
 
-              {isInsured && (
-                <div className="flex justify-between text-slate-600">
-                  <span>{isAr ? 'رسوم التأمين على البضائع:' : 'Cargo Insurance Fee:'}</span>
-                  <span className="font-mono font-bold text-slate-900">+{insuranceFeeJod.toFixed(2)} JOD</span>
-                </div>
-              )}
+                {categoryMarkupJod > 0 && (
+                  <div className="flex justify-between text-slate-600">
+                    <span>{isAr ? 'رسوم التصنيف الإضافية:' : 'Category Markup:'}</span>
+                    <span className="font-mono font-bold text-slate-900">+{categoryMarkupJod.toFixed(2)} {rateCurrency}</span>
+                  </div>
+                )}
 
-              <div className="pt-3 border-t border-slate-100 flex justify-between items-baseline">
-                <span className="text-sm font-bold text-slate-900">{isAr ? 'المجموع الإجمالي:' : 'Total Cost:'}</span>
-                <div className="text-end">
-                  <div className="text-2xl font-black text-emerald-700 font-mono">{finalTotalJod.toFixed(2)} JOD</div>
-                  <div className="text-xs text-slate-500 font-mono mt-0.5">≈ {finalTotalDzd.toLocaleString()} DZD</div>
+                {isInsured && (
+                  <div className="flex justify-between text-slate-600">
+                    <span>{isAr ? 'رسوم التأمين على البضائع:' : 'Cargo Insurance Fee:'}</span>
+                    <span className="font-mono font-bold text-slate-900">+{insuranceFeeJod.toFixed(2)} {rateCurrency}</span>
+                  </div>
+                )}
+
+                <div className="pt-3 border-t border-slate-100 flex justify-between items-baseline">
+                  <span className="text-sm font-bold text-slate-900">{isAr ? 'المجموع الإجمالي:' : 'Total Cost:'}</span>
+                  <div className="text-end">
+                    <div className="text-2xl font-black text-emerald-700 font-mono">{finalTotalJod.toFixed(2)} {rateCurrency}</div>
+                    {isFxBlocked ? (
+                      <div className="text-[11px] font-bold text-rose-600 flex items-center justify-end gap-1 mt-0.5">
+                        <AlertTriangle className="w-3 h-3" />
+                        <span>{isAr ? 'لا يوجد سعر صرف نشط (BLOCK)' : 'NO ACTIVE EXCHANGE RATE (BLOCK)'}</span>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-500 font-mono mt-0.5">
+                        ≈ {finalTotalCounter.toLocaleString()} {targetCounterCurrency}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <button
               type="button"
+              disabled={!hasActiveRate}
               onClick={() => {
+                if (!hasActiveRate) return;
                 alert(
                   isAr
-                    ? `تم حفظ عرض السعر (${finalTotalJod} JOD) للاستخدام في كاونتر الاستقبال.`
-                    : `Quotation (${finalTotalJod} JOD) saved.`
+                    ? `تم حفظ عرض السعر (${finalTotalJod} ${rateCurrency}) للاستخدام في كاونتر الاستقبال.`
+                    : `Quotation (${finalTotalJod} ${rateCurrency}) saved.`
                 );
                 onNavigate('ORIGIN_INTAKE');
               }}
-              className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+              className={`w-full py-2.5 font-bold rounded-xl text-xs shadow-xs transition-colors flex items-center justify-center gap-2 ${
+                hasActiveRate
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>{isAr ? 'اعتماد التسعير وتطبيقه على الشحنة' : 'Apply Rate to Shipment'}</span>

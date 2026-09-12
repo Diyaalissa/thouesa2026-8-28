@@ -137,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
               return (
                 <button
                   key={opt.key}
-                  id={`role-btn-${opt.key.toLowerCase()}`}
+                  id={`role-btn-${(opt.key || '').toLowerCase()}`}
                   onClick={() => onRoleChange(opt.key)}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold transition-all whitespace-nowrap cursor-pointer ${
                     isSelected

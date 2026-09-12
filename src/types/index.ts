@@ -230,12 +230,62 @@ export interface Shipment {
   receivedByEmployeeId?: string;
   receivedAtHubId?: string;
   customsDutyRecord?: CustomsDutyRecord;
+  senderEmail?: string;
+  securityDeclarations?: {
+    containsLiquids?: boolean;
+    containsBatteries?: boolean;
+    containsMedication?: boolean;
+    containsFragile?: boolean;
+  };
+  customerNotes?: string;
+  expectedPieces?: number;
+  packageType?: string;
+  senderKycStatus?: 'VERIFIED' | 'PENDING' | 'REJECTED';
+  intakeIssues?: Array<{
+    id: string;
+    issueType: string;
+    notes: string;
+    photoUrl?: string;
+    recordedAt: string;
+    employeeId: string;
+  }>;
+  priority?: 'URGENT' | 'HIGH' | 'NORMAL';
+  isHold?: boolean;
+  holdReason?: string;
+  readySince?: string;
+  custody?: 'SENDER' | 'ORIGIN_HUB' | 'TRAVELER' | 'DESTINATION_HUB' | 'RECIPIENT';
+  storageLocation?: string;
+  storageZone?: string;
+  storageRack?: string;
+  storageShelf?: string;
+  storageBin?: string;
+  preparedForPickupAt?: string;
+  preparedForPickupBy?: string;
+  paymentPolicy?: 'PREPAID_REQUIRED' | 'PAY_AT_PICKUP' | 'NOT_REQUIRED';
+  hasCustomsHold?: boolean;
+  customsHoldReason?: string;
+  hasDispute?: boolean;
+  disputeReason?: string;
+  packageCondition?: 'GOOD' | 'INTACT' | 'DAMAGED';
+  arrivalAtDestinationAt?: string;
+  pickupCode?: string;
+  deliveredBy?: string;
+  deliveredByEmployeeId?: string;
+  deliveredAtHubId?: string;
+  recipientVerified?: boolean;
+  recipientVerificationMethod?: string;
+  recipientNationalIdPresented?: string;
+  otpVerified?: boolean;
+  otpVerifiedAt?: string;
+  paymentStatusAtDelivery?: string;
+  lastStorageLocation?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export type TripStatus =
   | 'SUBMITTED'
+  | 'NEEDS_UPDATE'
   | 'VERIFIED'
   | 'CONFIRMED'
   | 'PACKAGES_LINKED'
@@ -281,35 +331,58 @@ export interface Trip {
   checkedInAt?: string;
   priorityTier?: 'STANDARD' | 'SILVER' | 'GOLD';
   legalCommitmentSigned?: boolean;
+  rejectionReason?: string;
+  updateRequestNotes?: string;
+  kycStatus?: 'VERIFIED' | 'PENDING' | 'REJECTED';
+  hasRiskFlag?: boolean;
+  riskReason?: string;
+  verifiedAt?: string;
+  verifiedByEmployeeId?: string;
   createdAt: string;
 }
 
 export type ManifestStatus =
+  | 'DRAFT'
+  | 'READY'
   | 'PREPARING'
   | 'HANDED_OVER'
+  | 'IN_TRANSIT'
   | 'IN_FLIGHT'
+  | 'ARRIVED'
   | 'DELIVERED_TO_DEST_HUB'
-  | 'DISCREPANCY_FLAGGED';
+  | 'CLOSED'
+  | 'DISCREPANCY'
+  | 'DISCREPANCY_FLAGGED'
+  | 'CANCELLED';
 
 export interface Manifest {
   id: string;
-  manifestCode: string; // MAN-AMM-ALG-0824
+  manifestCode?: string;
+  manifestNumber?: string;
   tripId: string;
   travelerId: string;
-  originHubId: string;
-  destinationHubId: string;
-  dispatchedByAgentId: string;
+  travelerName?: string;
+  assignedTravelerName?: string;
+  airline?: string;
+  flightNumber?: string;
+  originHubId?: string;
+  destinationHubId?: string;
+  dispatchedByAgentId?: string;
   receivedByAgentId?: string;
   shipmentIds: string[];
-  totalPackages: number;
+  totalPackages?: number;
+  totalShipmentsCount?: number;
   totalWeightKg: number;
-  totalDeclaredValue: number;
-  handoverQrSecret: string;
+  totalDeclaredValue?: number;
+  handoverQrSecret?: string;
+  handoverToken?: string;
   dispatchTimestamp?: string;
   receiptTimestamp?: string;
   status: ManifestStatus;
-  tamperSealIds: string[];
+  currentStatus?: ManifestStatus;
+  tamperSealIds?: string[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 export type TransactionType =
@@ -535,7 +608,7 @@ export interface ShippingRate {
   effectiveFrom: string;
   effectiveUntil?: string;
   version: number;
-  status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+  status: 'DRAFT' | 'SCHEDULED' | 'ACTIVE' | 'EXPIRED' | 'DISABLED' | 'INACTIVE' | 'ARCHIVED';
   createdBy: string;
   createdAt: string;
   reason?: string;
@@ -561,16 +634,16 @@ export interface RateHistoryEntry {
 
 export interface DailyExchangeRate {
   id: string;
-  baseCurrency: Currency; // e.g. 'DZD'
-  quoteCurrency: Currency; // e.g. 'JOD'
+  baseCurrency: Currency; // e.g. 'JOD'
+  quoteCurrency: Currency; // e.g. 'DZD'
   buyRate: number; // THOUESA buys baseCurrency
   sellRate: number; // THOUESA sells baseCurrency
   effectiveFrom: string;
   effectiveUntil?: string;
   countryScope: string; // 'JO' | 'DZ' | 'GLOBAL'
   source: string;
-  version: string; // e.g. 'FX-2026-09-03-01'
-  status: 'ACTIVE' | 'CLOSED' | 'ARCHIVED';
+  version: string | number; // e.g. 1 or '1' or 'FX-2026-09-03-01'
+  status: 'DRAFT' | 'SCHEDULED' | 'ACTIVE' | 'EXPIRED' | 'DISABLED' | 'CLOSED' | 'ARCHIVED';
   createdBy: string;
   createdAt: string;
   notes?: string;
@@ -614,17 +687,33 @@ export interface SettlementRecord {
   hubId: string;
   hubCode: string;
   
+  // Pricing Snapshot fields
+  shippingRateId?: string;
+  shippingRateVersion?: string | number;
+  travelerCompensationRateId?: string;
+  travelerCompensationRateVersion?: string | number;
+  rateType?: RateType;
+  pricingModel?: PricingModel;
+  appliedShippingRate?: number;
+  appliedTravelerRate?: number;
+  billingWeightKg?: number;
+  transportedWeightKg?: number;
+  
   // Base amount
   baseAmount: number;
   baseCurrency: Currency;
   
-  // Converted amount
+  // Converted amount / FX Snapshot
   settlementCurrency: Currency;
   exchangeRateId?: string;
-  rateVersion?: string;
+  rateVersion?: string | number;
+  exchangeRateVersion?: string | number;
   fxSide: 'BUY' | 'SELL' | 'NONE';
   appliedFxRate: number;
   convertedAmount: number;
+  amountDue?: number;
+  amountReceived?: number;
+  paymentMethod?: string;
   
   fees: number;
   adjustments: number;
@@ -637,6 +726,16 @@ export interface SettlementRecord {
   processedAt: string;
   receiptNumber?: string;
   notes?: string;
+  
+  // Historical Linkage & Audit
+  originalSettlementId?: string;
+  reversalReference?: string;
+  reversedBy?: string;
+  reversedAt?: string;
+  refundReason?: string;
+  failureReason?: string;
+  route?: string;
+  serviceType?: ServiceType;
 }
 
 export type IncidentCategory =
@@ -653,14 +752,19 @@ export type IncidentCategory =
   | 'OTHER';
 
 export type IncidentPriority = 'HIGH' | 'MEDIUM' | 'LOW';
-export type IncidentStatus = 'OPEN' | 'UNDER_REVIEW' | 'ACTION_REQUIRED' | 'RESOLVED' | 'ESCALATED';
+export type IncidentEntityType = 'MANIFEST' | 'SHIPMENT' | 'TRIP' | 'TRAVELER' | 'CUSTOMS' | 'SYSTEM';
+export type IncidentStatus = 'OPEN' | 'UNDER_REVIEW' | 'ACTION_REQUIRED' | 'RESOLVED' | 'CLOSED' | 'ESCALATED';
 
 export interface OperationalIncident {
   id: string;
-  incidentNumber: string; // INC-2026-0041
+  incidentNumber: string; // INC-2026-0041 or INC-0142
   category: IncidentCategory;
+  type?: string; // e.g. MISSING_PACKAGE, WEIGHT_DIFFERENCE, SEAL_MISMATCH
+  entityType?: IncidentEntityType; // MANIFEST, SHIPMENT, TRIP, etc.
+  referenceNumber?: string; // MF-0142, TH-0182, TRIP-0142
   priority: IncidentPriority;
   status: IncidentStatus;
+  isBlocking?: boolean; // Blocking flag: YES / NO
   hubId: string;
   hubName: string;
   relatedShipmentId?: string;
@@ -672,6 +776,7 @@ export interface OperationalIncident {
   evidencePhotos: string[];
   assignedEmployeeId: string;
   assignedEmployeeName: string;
+  assignedRole?: string; // e.g. Hub Manager, Lead Inspector
   resolutionNotes?: string;
   createdAt: string;
   updatedAt: string;

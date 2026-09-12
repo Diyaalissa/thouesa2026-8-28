@@ -3,6 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function() {
+        try {
+          if (typeof window !== 'undefined') {
+            var _nativeFetch = window.fetch ? window.fetch.bind(window) : null;
+            var _currentFetch = _nativeFetch;
+            Object.defineProperty(window, 'fetch', {
+              configurable: true,
+              enumerable: true,
+              get: function() {
+                return _currentFetch;
+              },
+              set: function(val) {
+                _currentFetch = val;
+              }
+            });
+            if (typeof Window !== 'undefined' && Window.prototype) {
+              try {
+                Object.defineProperty(Window.prototype, 'fetch', {
+                  configurable: true,
+                  enumerable: true,
+                  get: function() {
+                    return _currentFetch;
+                  },
+                  set: function(val) {
+                    _currentFetch = val;
+                  }
+                });
+              } catch (e2) {}
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
     <title>THOUESA — P2P Cross-Border Logistics & Escrow | منصة ثويسا</title>
     <meta name="description" content="Secure P2P cross-border logistics with physical certified hubs, verified travelers, and double-entry financial escrow protection. منصة الشحن التشاركي والضمان المالي الدولي." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -199,12 +199,13 @@ export const LegalPoliciesView: React.FC<LegalPoliciesViewProps> = ({
   // Filtered prohibited items
   const filteredProhibitedItems = useMemo(() => {
     return prohibitedItems.filter((item) => {
+      const q = (searchQuery || '').toLowerCase();
       const matchesSearch =
         searchQuery.trim() === '' ||
-        item.nameAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.nameEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.descAr.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.descEn.toLowerCase().includes(searchQuery.toLowerCase());
+        (item.nameAr || '').toLowerCase().includes(q) ||
+        (item.nameEn || '').toLowerCase().includes(q) ||
+        (item.descAr || '').toLowerCase().includes(q) ||
+        (item.descEn || '').toLowerCase().includes(q);
 
       const matchesFilter =
         selectedFilter === 'ALL' ||

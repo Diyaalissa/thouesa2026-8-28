@@ -58,3 +58,14 @@ export const normalizeManifestStatus = (rawStatus?: string): string => {
   if (!rawStatus) return 'DRAFT';
   return MANIFEST_STATUS_MAP[rawStatus] || rawStatus;
 };
+
+/**
+ * Normalizes country codes between 3-letter (JOR, DZA) and 2-letter (JO, DZ) ISO codes.
+ */
+export const normalizeCountryCode = (rawCode?: string): 'JO' | 'DZ' | string => {
+  if (!rawCode) return 'JO';
+  const upper = rawCode.trim().toUpperCase();
+  if (upper === 'JOR' || upper === 'JO') return 'JO';
+  if (upper === 'DZA' || upper === 'DZ') return 'DZ';
+  return upper;
+};
