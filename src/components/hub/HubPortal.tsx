@@ -1085,10 +1085,13 @@ export const HubPortal: React.FC<HubPortalProps> = ({
 
           {activeSection === 'GLOBAL_SEARCH' && (
             <GlobalSearchView
-              shipments={shipments}
-              trips={trips as any}
-              manifests={manifests}
+              shipments={localShipments}
+              trips={localTrips}
+              manifests={localManifests}
               incidents={operationalIncidents}
+              settlements={settlements}
+              shippingRates={shippingRates}
+              exchangeRates={exchangeRates}
               currentHub={currentHub}
               currentUser={currentUser}
               locale={currentLocale}

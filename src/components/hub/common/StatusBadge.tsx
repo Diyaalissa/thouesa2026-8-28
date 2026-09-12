@@ -19,7 +19,7 @@ import {
   normalizeManifestStatus,
 } from '../../../lib/statusNormalizer';
 
-export type BadgeDomain = 'SHIPMENT' | 'TRIP' | 'MANIFEST' | 'INCIDENT' | 'PRICING';
+export type BadgeDomain = 'SHIPMENT' | 'TRIP' | 'MANIFEST' | 'INCIDENT' | 'PRICING' | 'SETTLEMENT' | 'EXCHANGE_RATE' | 'RATE';
 
 export interface StatusBadgeProps {
   domain: BadgeDomain;
@@ -331,6 +331,76 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         labelAr = 'مؤرشفة بسجل الأسعار';
         labelEn = 'Archived';
         colorClasses = 'bg-slate-100 text-slate-500 border-slate-200';
+        Icon = FileText;
+        break;
+      default:
+        break;
+    }
+  } else if (domain === 'SETTLEMENT') {
+    switch (status) {
+      case 'PAID':
+      case 'SETTLED':
+        labelAr = 'مسدد / مكتمل';
+        labelEn = 'Paid / Settled';
+        colorClasses = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        Icon = CheckCircle2;
+        break;
+      case 'PENDING_PAYMENT':
+      case 'PENDING_PAYOUT':
+      case 'PENDING':
+        labelAr = 'قيد الانتظار';
+        labelEn = 'Pending';
+        colorClasses = 'bg-amber-50 text-amber-700 border-amber-200';
+        Icon = Clock;
+        break;
+      case 'DRAFT':
+      case 'QUOTED':
+        labelAr = 'مسودة تسوية';
+        labelEn = 'Draft';
+        colorClasses = 'bg-slate-100 text-slate-700 border-slate-200';
+        Icon = FileText;
+        break;
+      case 'FAILED':
+      case 'REVERSED':
+      case 'CANCELLED':
+        labelAr = 'ملغاة / معكوسة';
+        labelEn = 'Failed / Reversed';
+        colorClasses = 'bg-rose-50 text-rose-700 border-rose-200';
+        Icon = XCircle;
+        break;
+      default:
+        break;
+    }
+  } else if (domain === 'EXCHANGE_RATE' || domain === 'RATE') {
+    switch (status) {
+      case 'ACTIVE':
+        labelAr = 'نشط';
+        labelEn = 'Active';
+        colorClasses = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        Icon = CheckCircle2;
+        break;
+      case 'SCHEDULED':
+        labelAr = 'مجدول';
+        labelEn = 'Scheduled';
+        colorClasses = 'bg-sky-50 text-sky-700 border-sky-200';
+        Icon = Clock;
+        break;
+      case 'EXPIRED':
+        labelAr = 'منتهي';
+        labelEn = 'Expired';
+        colorClasses = 'bg-rose-50 text-rose-700 border-rose-200';
+        Icon = XCircle;
+        break;
+      case 'DISABLED':
+        labelAr = 'معطل';
+        labelEn = 'Disabled';
+        colorClasses = 'bg-slate-100 text-slate-700 border-slate-200';
+        Icon = PauseCircle;
+        break;
+      case 'DRAFT':
+        labelAr = 'مسودة';
+        labelEn = 'Draft';
+        colorClasses = 'bg-amber-50 text-amber-700 border-amber-200';
         Icon = FileText;
         break;
       default:
