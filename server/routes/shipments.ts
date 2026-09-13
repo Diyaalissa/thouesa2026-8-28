@@ -123,6 +123,7 @@ shipmentsRouter.post('/', (req: Request, res: Response) => {
     sender_legal_waiver_signed,
     preferredDispatchOptionId,
     preferredDepartureDate,
+    preferredDeliveryWindow,
     paymentMethod = 'WALLET',
     paymentCurrency = 'USD',
   } = req.body;
@@ -210,6 +211,7 @@ shipmentsRouter.post('/', (req: Request, res: Response) => {
     currentStatus: 'PENDING',
     preferredDispatchOptionId: preferredDispatchOptionId || undefined,
     preferredDepartureDate: preferredDepartureDate || undefined,
+    preferredDeliveryWindow: preferredDeliveryWindow || undefined,
     senderLegalWaiverSigned: true,
     senderLegalWaiverTimestamp: new Date().toISOString(),
     paymentMethod,

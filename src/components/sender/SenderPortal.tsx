@@ -42,7 +42,7 @@ import { Plus,  Trash2, ClipboardPaste,
   Percent,
   ShieldAlert, Wallet, Sparkles,
 Globe, Receipt, Paperclip, } from 'lucide-react';
-import { EscrowWallet, Hub, ItemCategory, ItemCondition, Locale, OrderItem, ServiceType, Shipment, User } from '../../types';
+import { EscrowWallet, Hub, ItemCategory, ItemCondition, Locale, OrderItem, ServiceType, Shipment, User, Trip, ShippingRate, DailyExchangeRate } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
 import { WaybillModal } from '../common/WaybillModal';
 import { AgentChatModal } from '../common/AgentChatModal';
@@ -60,6 +60,9 @@ interface SenderPortalProps {
   shipments: Shipment[];
   locale: Locale;
   hubs?: Hub[];
+  trips?: Trip[];
+  shippingRates?: ShippingRate[];
+  exchangeRates?: DailyExchangeRate[];
   onRefreshShipments: () => void;
   onCreateShipment: (payload: any) => Promise<boolean>;
   onCancelShipment: (shipmentId: string) => Promise<boolean>;
@@ -72,6 +75,9 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
   shipments,
   locale,
   hubs,
+  trips = [],
+  shippingRates = [],
+  exchangeRates = [],
   onRefreshShipments,
   onCreateShipment,
   onCancelShipment,
@@ -692,6 +698,9 @@ export const SenderPortal: React.FC<SenderPortalProps> = ({
           isAr={isAr}
           currentUser={currentUser}
           activeHubs={activeHubs}
+          trips={trips}
+          shippingRates={shippingRates}
+          exchangeRates={exchangeRates}
           onSubmitShipment={handleSendParcelSubmit}
           isSubmitting={isSubmitting}
           onBack={() => setActiveTab('OVERVIEW')}

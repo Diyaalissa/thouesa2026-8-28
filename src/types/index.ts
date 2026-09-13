@@ -781,3 +781,28 @@ export interface OperationalIncident {
   createdAt: string;
   updatedAt: string;
 }
+
+export type AnnouncementStatus = 'DRAFT' | 'SCHEDULED' | 'ACTIVE' | 'EXPIRED' | 'DISABLED';
+export type AnnouncementPlacement = 'TOP_BANNER' | 'HOME_FEATURED' | 'BELOW_SCHEDULE';
+
+export interface PublicAnnouncement {
+  id: string;
+  titleAr: string;
+  titleEn: string;
+  bodyAr: string;
+  bodyEn: string;
+  imageUrl?: string;
+  ctaLabelAr?: string;
+  ctaLabelEn?: string;
+  ctaTarget?: 'SENDER' | 'TRAVELER' | 'CALCULATOR' | 'SCHEDULE' | string;
+  placement: AnnouncementPlacement;
+  priority: number; // Higher number = higher priority
+  startAt: string; // ISO timestamp
+  endAt?: string; // ISO timestamp (optional)
+  status: AnnouncementStatus;
+  isDismissible?: boolean;
+  badgeAr?: string;
+  badgeEn?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}

@@ -917,9 +917,12 @@ export const TravelerPortal: React.FC<TravelerPortalProps> = ({
         currentUserName={currentUser.fullName}
         currentUserPhone={currentUser.phone}
         locale={locale}
+        onRegisterTrip={onRegisterTrip}
         onSuccess={(newTrip) => {
           onRefreshData();
-          setActiveTripId(newTrip.id);
+          if (newTrip?.id) {
+            setActiveTripId(newTrip.id);
+          }
         }}
       />
 

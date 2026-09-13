@@ -56,8 +56,10 @@ export const Header: React.FC<HeaderProps> = ({
   const hasDedicatedHeader = [
     'HUB_AGENT',
     'HUB_MANAGER',
+    'HUB_INSPECTOR',
     'PRICING_MANAGER',
     'FINANCIAL_OFFICER',
+    'EMPLOYEE',
     'MASTER_ADMIN',
   ].includes(currentRole);
 

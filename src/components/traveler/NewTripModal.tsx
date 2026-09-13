@@ -27,7 +27,8 @@ interface NewTripModalProps {
   currentUserName: string;
   currentUserPhone?: string;
   locale: Locale;
-  onSuccess: (newTrip: Trip) => void;
+  onSuccess?: (newTrip?: Trip) => void;
+  onRegisterTrip: (payload: any) => Promise<any>;
 }
 
 export const NewTripModal: React.FC<NewTripModalProps> = ({
@@ -39,6 +40,7 @@ export const NewTripModal: React.FC<NewTripModalProps> = ({
   currentUserPhone,
   locale,
   onSuccess,
+  onRegisterTrip,
 }) => {
   const isAr = locale === 'ar';
 
@@ -135,32 +137,35 @@ export const NewTripModal: React.FC<NewTripModalProps> = ({
       const depIso = `${departureDate}T${departureTimeOnly}:00.000Z`;
       const arrIso = `${arrivalDate}T${arrivalTimeOnly}:00.000Z`;
 
-      const res = await fetch('/api/trips', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          travelerId: currentUserId,
-          travelerName: currentUserName,
-          travelerPhone: currentUserPhone,
-          originHubId,
-          destinationHubId,
-          airline,
-          flightNumber: flightNumber.toUpperCase(),
-          pnrCode: pnrCode.toUpperCase(),
-          departureTime: depIso,
-          arrivalTime: arrIso,
-          availableWeightKg,
-          ticketDocUrl: ticketFile.name,
-        }),
-      });
+      const payload = {
+        travelerId: currentUserId,
+        travelerName: currentUserName,
+        travelerPhone: currentUserPhone,
+        originHubId,
+        destinationHubId,
+        airline,
+        flightNumber: flightNumber.toUpperCase(),
+        pnrCode: pnrCode.toUpperCase(),
+        departureTime: depIso,
+        arrivalTime: arrIso,
+        availableWeightKg,
+        ticketDocUrl: ticketFile.name,
+      };
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to register trip');
+      const result = await onRegisterTrip(payload);
+
+      if (result && typeof result === 'object' && result.success) {
+        if (onSuccess) onSuccess(result.trip);
+        onClose();
+      } else if (result === true) {
+        if (onSuccess) onSuccess();
+        onClose();
+      } else {
+        const errorText =
+          (result && typeof result === 'object' && result.error) ||
+          (isAr ? 'حدث خطأ أثناء تسجيل الرحلة' : 'Error registering trip');
+        setErrorMsg(errorText);
       }
-
-      onSuccess(data.trip);
-      onClose();
     } catch (err: any) {
       setErrorMsg(err.message || (isAr ? 'حدث خطأ أثناء تسجيل الرحلة' : 'Error registering trip'));
     } finally {

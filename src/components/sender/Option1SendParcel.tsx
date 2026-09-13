@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Package, 
   Box, 
@@ -20,14 +20,23 @@ import {
   Shield,
   HelpCircle,
   X,
-  FileText
+  FileText,
+  Calendar
 } from 'lucide-react';
-import { Hub, User } from '../../types';
+import { Currency, DailyExchangeRate, Hub, ShippingRate, Trip, User } from '../../types';
+import { 
+  CustomerDeliveryWindow, 
+  calculateCustomerShippingQuote, 
+  getCustomerDeliveryWindows 
+} from '../../lib/deliveryWindows';
 
 interface Option1SendParcelProps {
   isAr: boolean;
   currentUser: User;
   activeHubs: Hub[];
+  trips?: Trip[];
+  shippingRates?: ShippingRate[];
+  exchangeRates?: DailyExchangeRate[];
   onSubmitShipment: (shipmentData: any) => Promise<void>;
   isSubmitting: boolean;
   onBack?: () => void;
@@ -37,6 +46,9 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
   isAr,
   currentUser,
   activeHubs,
+  trips = [],
+  shippingRates = [],
+  exchangeRates = [],
   onSubmitShipment,
   isSubmitting,
   onBack
@@ -55,52 +67,64 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
   const [parcelDescription, setParcelDescription] = useState<string>('');
   const [parcelImage, setParcelImage] = useState<string | null>(null);
 
-  // 2. Routing, Addresses & Scheduled Trips
-  const [originHubId, setOriginHubId] = useState<string>('hub-amm');
-  const [destHubId, setDestHubId] = useState<string>('hub-alg');
+  // 2. Routing, Addresses & Delivery Windows
+  const [originHubId, setOriginHubId] = useState<string>(() => {
+    const ammanHub = activeHubs.find(h => h.code === 'AMM' || h.countryCode === 'JO');
+    return ammanHub ? ammanHub.id : (activeHubs[0]?.id || 'hub-amm');
+  });
+  
+  const [destHubId, setDestHubId] = useState<string>(() => {
+    const algiersHub = activeHubs.find(h => h.code === 'ALG' || h.countryCode === 'DZ');
+    return algiersHub ? algiersHub.id : (activeHubs[1]?.id || 'hub-alg');
+  });
+
   const [deliveryType, setDeliveryType] = useState<'HUB' | 'HOME'>('HUB');
   const [pickupHubId, setPickupHubId] = useState<string>('hub-alg');
   const [recipientName, setRecipientName] = useState<string>('');
   const [recipientPhone, setRecipientPhone] = useState<string>('');
   const [recipientAddress, setRecipientAddress] = useState<string>('');
   const [recipientNationalId, setRecipientNationalId] = useState<string>('');
-  
-  // Scheduled Flights Data
-  const scheduledTrips = useMemo(() => [
-    {
-      id: 'trip-1',
-      flightNumber: 'RJ 503',
-      airline: isAr ? 'الملكية الأردنية' : 'Royal Jordanian',
-      departureDate: '2026-09-05',
-      cutoffDate: '2026-09-02',
-      etaDate: '2026-09-08',
-      remainingCapacityKg: 45,
-      status: 'AVAILABLE'
-    },
-    {
-      id: 'trip-2',
-      flightNumber: 'AH 4062',
-      airline: isAr ? 'الخطوط الجوية الجزائرية' : 'Air Algérie',
-      departureDate: '2026-09-08',
-      cutoffDate: '2026-09-05',
-      etaDate: '2026-09-11',
-      remainingCapacityKg: 18,
-      status: 'FILLING_FAST'
-    },
-    {
-      id: 'trip-3',
-      flightNumber: 'EK 902',
-      airline: isAr ? 'طيران الإمارات' : 'Emirates',
-      departureDate: '2026-09-12',
-      cutoffDate: '2026-09-09',
-      etaDate: '2026-09-15',
-      remainingCapacityKg: 32,
-      status: 'AVAILABLE'
-    }
-  ], [isAr]);
 
-  const [selectedTripId, setSelectedTripId] = useState<string>('trip-1');
-  const selectedTrip = scheduledTrips.find(t => t.id === selectedTripId) || scheduledTrips[0];
+  // Volumetric & Chargeable Weight Calculations
+  const volumetricWeightKg = useMemo(() => {
+    return Number(((parcelLengthCm * parcelWidthCm * parcelHeightCm) / 5000).toFixed(2));
+  }, [parcelLengthCm, parcelWidthCm, parcelHeightCm]);
+
+  const chargeableWeightKg = useMemo(() => {
+    return Math.max(parcelActualWeightKg, volumetricWeightKg);
+  }, [parcelActualWeightKg, volumetricWeightKg]);
+
+  // Derive Eligible Customer Delivery Windows strictly from shared Trips
+  const originHub = activeHubs.find(h => h.id === originHubId) || activeHubs[0];
+  const destHub = activeHubs.find(h => h.id === destHubId) || activeHubs[1];
+  const originCountry = originHub?.countryCode || 'JO';
+  const destinationCountry = destHub?.countryCode || 'DZ';
+
+  const deliveryWindows: CustomerDeliveryWindow[] = useMemo(() => {
+    return getCustomerDeliveryWindows({
+      trips,
+      originCountry,
+      destinationCountry,
+      requiredWeightKg: chargeableWeightKg,
+      isAr,
+    });
+  }, [trips, originCountry, destinationCountry, chargeableWeightKg, isAr]);
+
+  const [selectedWindowId, setSelectedWindowId] = useState<string>('');
+
+  // Auto-select first available window if not selected or invalid
+  useEffect(() => {
+    if (deliveryWindows.length > 0) {
+      const exists = deliveryWindows.some(w => w.id === selectedWindowId);
+      if (!exists || !selectedWindowId) {
+        setSelectedWindowId(deliveryWindows[0].id);
+      }
+    } else {
+      setSelectedWindowId('');
+    }
+  }, [deliveryWindows, selectedWindowId]);
+
+  const selectedWindow = deliveryWindows.find(w => w.id === selectedWindowId) || deliveryWindows[0];
 
   // 3. Upselling & Protection
   const [packagingType, setPackagingType] = useState<'NONE' | 'SECURE_BUBBLE' | 'LUXURY_GIFT'>('NONE');
@@ -111,42 +135,60 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
   const [showProhibitedModal, setShowProhibitedModal] = useState<boolean>(false);
 
   // 4. Financial & Payment
-  const [selectedCurrency, setSelectedCurrency] = useState<'SENDER' | 'RECIPIENT'>('SENDER');
+  const [selectedCurrencyPreference, setSelectedCurrencyPreference] = useState<'ORIGIN' | 'DESTINATION'>('ORIGIN');
   const [paymentGateway, setPaymentGateway] = useState<'CLIQ_JOR' | 'EDAHABIA_DZA' | 'ESCROW_WALLET' | 'BANK_TRANSFER' | 'CASH_AT_HUB'>('CLIQ_JOR');
   const [transferReceipt, setTransferReceipt] = useState<string | null>(null);
 
-  // Mathematical Formulas & Dynamic Rates
-  const ratePerKgUSD = 12.0; // Base freight rate per kg
-  const volumetricWeightKg = Number(((parcelLengthCm * parcelWidthCm * parcelHeightCm) / 5000).toFixed(2));
-  const chargeableWeightKg = Math.max(parcelActualWeightKg, volumetricWeightKg);
-  const baseShippingCostUSD = Number((chargeableWeightKg * ratePerKgUSD).toFixed(2));
-
-  const packagingFeeUSD = packagingType === 'SECURE_BUBBLE' ? 5.0 : packagingType === 'LUXURY_GIFT' ? 8.0 : 0.0;
-  const insuranceFeeUSD = insuranceRequested ? Number(Math.max(3.0, declaredValueUSD * 0.015).toFixed(2)) : 0.0;
-  const localDeliveryFeeUSD = deliveryType === 'HOME' ? 10.0 : 0.0;
-
-  const totalCostUSD = baseShippingCostUSD + packagingFeeUSD + insuranceFeeUSD + localDeliveryFeeUSD;
-
-  // Currency Conversions
-  const exchangeRateDZD = 135;
-  const exchangeRateJOD = 0.71;
-
-  const formatCurrency = (usdVal: number) => {
-    if (selectedCurrency === 'RECIPIENT') {
-      return `${(usdVal * exchangeRateDZD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DZD`;
+  // Determine target payment currency based on user toggle
+  const paymentCurrency: Currency = useMemo(() => {
+    if (selectedCurrencyPreference === 'DESTINATION') {
+      return destinationCountry === 'DZ' ? 'DZD' : destinationCountry === 'JO' ? 'JOD' : 'USD';
     }
-    return `${(usdVal * exchangeRateJOD).toFixed(2)} JOD ($${usdVal.toFixed(2)})`;
-  };
+    return originCountry === 'JO' ? 'JOD' : originCountry === 'DZ' ? 'DZD' : 'USD';
+  }, [selectedCurrencyPreference, originCountry, destinationCountry]);
+
+  // Calculate official Customer Quote strictly from CUSTOMER_SHIPPING rates & shared FX
+  const quoteResult = useMemo(() => {
+    return calculateCustomerShippingQuote({
+      shippingRates,
+      exchangeRates,
+      originCountry,
+      destinationCountry,
+      serviceType: 'SEND_PARCEL',
+      billingWeightKg: chargeableWeightKg,
+      paymentCurrency,
+      declaredValueUsd: declaredValueUSD,
+      insuranceRequested,
+      packagingType,
+      deliveryType,
+    });
+  }, [
+    shippingRates,
+    exchangeRates,
+    originCountry,
+    destinationCountry,
+    chargeableWeightKg,
+    paymentCurrency,
+    declaredValueUSD,
+    insuranceRequested,
+    packagingType,
+    deliveryType,
+  ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormValidationError(null);
+
     if (!prohibitedAgreed) {
       setFormValidationError(isAr ? 'يرجى الإقرار بعدم احتواء الطرد على أي مواد ممنوعة قانونياً للمتابعة.' : 'Please acknowledge that the parcel contains no prohibited items to proceed.');
       return;
     }
     if (!customsAgreed) {
       setFormValidationError(isAr ? 'يرجى الموافقة على التنبيه الجمركي الإلزامي للمتابعة.' : 'Please acknowledge the customs disclaimer to proceed.');
+      return;
+    }
+    if (!quoteResult.available) {
+      setFormValidationError(quoteResult.error || (isAr ? 'تعرفة الشحن غير متوفرة لهذا المسار' : 'Shipping quote unavailable for this route'));
       return;
     }
 
@@ -170,17 +212,41 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
       prohibitedItemsAgreed: prohibitedAgreed,
       customsAgreed,
       packagingType,
-      packagingCost: packagingFeeUSD,
+      packagingCost: quoteResult.packagingFee || 0,
       insuranceRequested,
-      insuranceCost: insuranceFeeUSD,
-      shippingCost: baseShippingCostUSD + localDeliveryFeeUSD,
-      totalCostUSD,
-      selectedTripId,
-      preferredDispatchOptionId: selectedTripId,
-      preferredDepartureDate: selectedTrip?.departureDate,
-      scheduledTrip: selectedTrip,
+      insuranceCost: quoteResult.insuranceFee || 0,
+      shippingCost: (quoteResult.baseShippingCost || 0) + (quoteResult.localDeliveryFee || 0),
+      totalCostUSD: quoteResult.totalBaseAmount || 0,
+      
+      // Stage 05 Specification: Customer selects preferred delivery window (preference only)
+      // Strictly NO assignedTravelerId, assignedTripId, or manifestId saved at customer stage.
+      preferredDispatchOptionId: selectedWindow?.id || undefined,
+      preferredDepartureDate: selectedWindow?.departureDate || undefined,
+      preferredDeliveryWindow: selectedWindow ? {
+        id: selectedWindow.id,
+        departureDate: selectedWindow.departureDate,
+        departureDisplay: selectedWindow.departureDisplay,
+        etaDate: selectedWindow.etaDate,
+        etaDisplay: selectedWindow.etaDisplay,
+        cutoffDate: selectedWindow.cutoffDate,
+        cutoffDisplay: selectedWindow.cutoffDisplay,
+        remainingCapacityKg: selectedWindow.remainingCapacityKg,
+        airline: selectedWindow.airline,
+        flightNumber: selectedWindow.flightNumber,
+      } : undefined,
+
+      // Financial Snapshot (Rules 31, 32, 35)
+      appliedRateId: quoteResult.rateId,
+      appliedRateVersion: quoteResult.rateVersion,
+      baseCurrency: quoteResult.baseCurrency,
+      paymentCurrency: quoteResult.paymentCurrency,
+      paymentAmount: quoteResult.paymentAmount,
+      appliedFxRate: quoteResult.appliedFxRate,
+      fxSide: quoteResult.fxSide,
+      fxRateId: quoteResult.fxRateId,
+      fxRateVersion: quoteResult.fxRateVersion,
+
       paymentMethod: paymentGateway,
-      paymentCurrency: selectedCurrency,
       parcelImage,
       transferReceipt,
       orderItems: [
@@ -225,8 +291,8 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
                 </h3>
                 <p className="text-xs md:text-sm text-slate-400 mt-0.5">
                   {isAr 
-                    ? 'شحن آمن للأمانات، المقتنيات الشخصية، الهدايا والبضائع التجارية بين الأردن والجزائر والدول المعتمدة' 
-                    : 'Secure shipping for personal luggage, gifts, and commercial parcels between Jordan, Algeria & regional hubs'}
+                    ? 'شحن آمن للأمانات والمقتنيات الشخصية والهدايا بين الأردن والجزائر وفق مواعيد تسليم معتمدة' 
+                    : 'Secure shipping for personal items and gifts with verified delivery windows'}
                 </p>
               </div>
             </div>
@@ -252,7 +318,7 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
           <div className="flex items-center justify-between mb-3 px-1">
             {[
               { step: 1, label: isAr ? 'المواصفات' : 'Specs' },
-              { step: 2, label: isAr ? 'الرحلات' : 'Flights' },
+              { step: 2, label: isAr ? 'مواعيد التوصيل' : 'Windows' },
               { step: 3, label: isAr ? 'الحماية' : 'Protection' },
               { step: 4, label: isAr ? 'الدفع' : 'Payment' },
             ].map((s) => (
@@ -287,7 +353,7 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <h4 className="text-sm md:text-base font-bold text-white flex items-center gap-2">
               <Box className="w-4 h-4 text-brand-400" />
-              <span>{isAr ? '1. بيانات الطرد الأساسية والتسعير اللحظي' : '1. Parcel Specifications & Instant Pricing'}</span>
+              <span>{isAr ? '1. بيانات الطرد الأساسية والتسعير المعتمد' : '1. Parcel Specifications & Certified Rates'}</span>
             </h4>
             <span className="text-[11px] font-semibold text-brand-400/90 bg-brand-500/10 px-2.5 py-1 rounded-full border border-brand-500/20">
               {isAr ? 'حساب الوزن الحجمي تلقائياً' : 'Automatic Volumetric Math'}
@@ -310,7 +376,7 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
                     key={type.id}
                     type="button"
                     onClick={() => setParcelType(type.id as any)}
-                    className={`py-2 px-1 text-center rounded-xl text-xs font-bold transition-all border ${
+                    className={`py-2 px-1 text-center rounded-xl text-xs font-bold transition-all border cursor-pointer ${
                       parcelType === type.id
                         ? 'bg-brand-500/20 border-brand-500 text-brand-300 shadow-sm'
                         : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -348,9 +414,17 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
               <span className="text-xs font-bold text-slate-200">
                 {isAr ? 'الأبعاد والوزن (حساب مباشر ودقيق للتكلفة)' : 'Dimensions & Weight (Direct Cost Calculator)'}
               </span>
-              <span className="text-[11px] font-mono font-bold text-brand-300 bg-brand-500/10 px-2 py-0.5 rounded-md border border-brand-500/20">
-                {isAr ? 'سعر الكيلو: $12.00' : 'Rate: $12.00 / kg'}
-              </span>
+              {quoteResult.available && quoteResult.ratePerKg ? (
+                <span className="text-[11px] font-mono font-bold text-brand-300 bg-brand-500/10 px-2 py-0.5 rounded-md border border-brand-500/20">
+                  {isAr 
+                    ? `سعر الكيلو المعتمد: ${quoteResult.ratePerKg.toFixed(2)} ${quoteResult.baseCurrency}` 
+                    : `Rate: ${quoteResult.ratePerKg.toFixed(2)} ${quoteResult.baseCurrency} / kg`}
+                </span>
+              ) : (
+                <span className="text-[11px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                  {isAr ? 'بانتظار تحديد المسار' : 'Pending route'}
+                </span>
+              )}
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -364,7 +438,7 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
                   max="200"
                   required
                   value={parcelLengthCm}
-                  onChange={(e) => setParcelLengthCm(Number(e.target.value))}
+                  onChange={(e) => setParcelLengthCm(Math.max(1, Number(e.target.value)))}
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-center text-sm font-bold text-white focus:outline-none focus:border-brand-400"
                 />
               </div>
@@ -379,7 +453,7 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
                   max="200"
                   required
                   value={parcelWidthCm}
-                  onChange={(e) => setParcelWidthCm(Number(e.target.value))}
+                  onChange={(e) => setParcelWidthCm(Math.max(1, Number(e.target.value)))}
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-center text-sm font-bold text-white focus:outline-none focus:border-brand-400"
                 />
               </div>
@@ -394,14 +468,14 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
                   max="200"
                   required
                   value={parcelHeightCm}
-                  onChange={(e) => setParcelHeightCm(Number(e.target.value))}
+                  onChange={(e) => setParcelHeightCm(Math.max(1, Number(e.target.value)))}
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-center text-sm font-bold text-white focus:outline-none focus:border-brand-400"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] text-brand-300 mb-1 text-center font-bold">
-                  {isAr ? 'الوزن الفعلي (كغ)' : 'Actual Wt (kg)'}
+                <label className="block text-[11px] text-slate-400 mb-1 text-center font-medium">
+                  {isAr ? 'الوزن الفعلي (كغ) *' : 'Actual Weight (kg) *'}
                 </label>
                 <input
                   type="number"
@@ -410,50 +484,37 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
                   step="0.1"
                   required
                   value={parcelActualWeightKg}
-                  onChange={(e) => setParcelActualWeightKg(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-brand-950/40 border border-brand-500/50 rounded-xl text-center text-sm font-black text-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                  onChange={(e) => setParcelActualWeightKg(Math.max(0.1, Number(e.target.value)))}
+                  className="w-full px-3 py-2 bg-slate-950 border border-brand-500/50 rounded-xl text-center text-sm font-bold text-brand-300 focus:outline-none focus:border-brand-400"
                 />
               </div>
             </div>
 
-            {/* Live Pricing Breakdown Card */}
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="grid grid-cols-3 gap-3 text-center w-full sm:w-auto">
-                <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block">{isAr ? 'الوزن الحجمي' : 'Volumetric'}</span>
-                  <span className="text-xs font-bold text-slate-200">{volumetricWeightKg} kg</span>
-                </div>
-                <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-400 block">{isAr ? 'الوزن الفعلي' : 'Actual'}</span>
-                  <span className="text-xs font-bold text-slate-200">{parcelActualWeightKg} kg</span>
-                </div>
-                <div className="bg-brand-500/10 p-2.5 rounded-lg border border-brand-500/30">
-                  <span className="text-[10px] text-brand-400 block font-bold">{isAr ? 'الوزن المفوتر' : 'Billable'}</span>
-                  <span className="text-xs font-black text-brand-300">{chargeableWeightKg} kg</span>
-                </div>
+            {/* Calculated Weight Badges */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                <span className="text-slate-400">{isAr ? 'الوزن الحجمي التقديري (L×W×H/5000):' : 'Volumetric Weight:'}</span>
+                <span className="font-mono font-bold text-white">{volumetricWeightKg} kg</span>
               </div>
-
-              <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
-                <div className="text-right">
-                  <span className="text-[11px] text-slate-400 block">{isAr ? 'تكلفة الشحن الأساسية:' : 'Base Freight Fee:'}</span>
-                  <span className="text-xl md:text-2xl font-black text-white">{formatCurrency(baseShippingCostUSD)}</span>
-                </div>
+              <div className="bg-brand-500/10 p-3 rounded-xl border border-brand-500/30 flex items-center justify-between text-xs">
+                <span className="text-brand-300 font-bold">{isAr ? 'الوزن المعتمد للاحتساب (الأعلى):' : 'Chargeable Billing Weight:'}</span>
+                <span className="font-mono font-black text-brand-300 text-sm">{chargeableWeightKg} kg</span>
               </div>
             </div>
           </div>
 
-          {/* Detailed Content Description */}
+          {/* Description */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              {isAr ? 'وصف دقيق لمحتويات الطرد *' : 'Detailed Parcel Contents Description *'}
+              {isAr ? 'وصف تفصيلي لمحتويات الطرد *' : 'Detailed Content Description *'}
             </label>
-            <textarea
+            <input
+              type="text"
               required
-              rows={2}
+              placeholder={isAr ? 'مثال: ملابس شخصية مستعملة، هدايا عائلية، عطور شخصية...' : 'e.g. Used personal clothing, gifts, personal perfumes...'}
               value={parcelDescription}
               onChange={(e) => setParcelDescription(e.target.value)}
-              placeholder={isAr ? 'مثال: 3 قطع ملابس شتوية، حذاء رياضي أصلي، هاتف ذكي جديد في علبته...' : 'e.g. 3 Winter jackets, 1 pair of athletic sneakers, 1 boxed smartphone...'}
-              className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white resize-none focus:outline-none focus:border-brand-400 transition-all"
+              className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-brand-400 transition-all"
             />
           </div>
 
@@ -513,13 +574,13 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
         </div>
 
         {/* ========================================================================= */}
-        {/* SECTION 2: ROUTING, ADDRESSES & SCHEDULED FLIGHTS (العناوين والرحلات) */}
+        {/* SECTION 2: ROUTING, ADDRESSES & DELIVERY WINDOWS (العناوين ومواعيد التوصيل) */}
         {/* ========================================================================= */}
         <div className={`${wizardStep === 2 ? 'block' : 'hidden'} md:block bg-slate-950/70 border border-slate-800 rounded-2xl p-4 md:p-6 space-y-5`}>
           <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-800 pb-3 gap-2">
             <h4 className="text-sm md:text-base font-bold text-white flex items-center gap-2">
               <MapPin className="w-4 h-4 text-brand-400" />
-              <span>{isAr ? '2. العناوين ومسار الشحن ونظام الرحلات المجدولة' : '2. Addresses, Routing & Scheduled Flights'}</span>
+              <span>{isAr ? '2. العناوين ومسار الشحن ونوافذ التوصيل المتاحة' : '2. Addresses, Routing & Available Delivery Windows'}</span>
             </h4>
 
             {/* Smart Address Book */}
@@ -545,7 +606,7 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
                     setRecipientNationalId('9901020304');
                   }
                 }}
-                className="px-2.5 py-1 bg-slate-900 border border-slate-700 rounded-lg text-xs text-brand-300 font-semibold focus:outline-none"
+                className="px-2.5 py-1 bg-slate-900 border border-slate-700 rounded-lg text-xs text-brand-300 font-semibold focus:outline-none cursor-pointer"
               >
                 <option value="">{isAr ? '⚡ اختيار سريع من العناوين المحفوظة' : '⚡ Quick select saved recipient'}</option>
                 <option value="addr-1">{isAr ? 'أحمد الجزائري (الجزائر العاصمة)' : 'Ahmad (Algiers)'}</option>
@@ -650,7 +711,7 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
               <input
                 type="text"
                 required
-                placeholder={isAr ? 'مثال: محمد أحمد علي' : 'e.g. John Doe'}
+                placeholder={isAr ? 'مثال: أحمد الجزائري' : 'e.g. John Doe'}
                 value={recipientName}
                 onChange={(e) => setRecipientName(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-brand-400 transition-all"
@@ -698,78 +759,109 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
             )}
           </div>
 
-          {/* Scheduled Trips & Flight Selection */}
+          {/* ========================================================================= */}
+          {/* SECTION 2.B: CUSTOMER DELIVERY WINDOW SELECTION (Stage 05 Core) */}
+          {/* ========================================================================= */}
           <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between border-t border-slate-800 pt-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-slate-800 pt-3 gap-1">
               <label className="text-xs font-bold text-white flex items-center gap-2">
-                <Plane className="w-4 h-4 text-brand-400" />
-                <span>{isAr ? 'اختر الرحلة الجوية المجدولة لشحن طردك *' : 'Select Scheduled Flight for Cargo Dispatch *'}</span>
+                <Calendar className="w-4 h-4 text-brand-400" />
+                <span>{isAr ? 'اختر نافذة التوصيل وموعد الإرسال المفضل *' : 'Select Preferred Delivery Window *'}</span>
               </label>
-              <span className="text-[11px] text-slate-400">{isAr ? 'سعة شحن مضمونة' : 'Guaranteed Luggage Capacity'}</span>
+              <span className="text-[11px] text-slate-400">
+                {isAr ? 'مواعيد مستمدة من الرحلات المعتمدة تشغيلياً' : 'Derived from verified operational schedules'}
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {scheduledTrips.map((trip) => {
-                const isSelected = selectedTripId === trip.id;
-                return (
-                  <div
-                    key={trip.id}
-                    onClick={() => setSelectedTripId(trip.id)}
-                    className={`p-3.5 md:p-4 rounded-2xl border-2 cursor-pointer transition-all ${
-                      isSelected
-                        ? 'border-brand-500 bg-brand-500/10 shadow-lg shadow-brand-500/10'
-                        : 'border-slate-800 bg-slate-900/80 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-mono font-black text-xs md:text-sm text-white">{trip.flightNumber}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        trip.remainingCapacityKg > 20 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
-                      }`}>
-                        {trip.remainingCapacityKg} kg {isAr ? 'متبقي' : 'left'}
-                      </span>
-                    </div>
+            {deliveryWindows.length === 0 ? (
+              <div className="p-4 bg-slate-900/90 border border-slate-800 rounded-2xl text-center space-y-2">
+                <p className="text-xs font-bold text-amber-300">
+                  {isAr 
+                    ? `لا توجد نوافذ توصيل معتمدة متاحة حالياً لمسار (${originCountry} ➔ ${destinationCountry})` 
+                    : `No verified delivery windows available for (${originCountry} ➔ ${destinationCountry})`}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  {isAr 
+                    ? 'يمكنك تسجيل الطرد وسيقوم فريق العمليات بمطابقته فور اعتماد أقرب رحلة مناسبة.' 
+                    : 'You can still submit your parcel and hub operations will match it upon the next verified flight.'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {deliveryWindows.map((win) => {
+                  const isSelected = selectedWindowId === win.id;
+                  return (
+                    <div
+                      key={win.id}
+                      onClick={() => setSelectedWindowId(win.id)}
+                      className={`p-3.5 md:p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-brand-500 bg-brand-500/10 shadow-lg shadow-brand-500/10'
+                          : 'border-slate-800 bg-slate-900/80 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-mono font-black text-xs md:text-sm text-white">
+                          {win.flightNumber || 'FLIGHT'}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          win.remainingCapacityKg > 20 
+                            ? 'bg-emerald-500/20 text-emerald-300' 
+                            : win.remainingCapacityKg > 0 
+                            ? 'bg-amber-500/20 text-amber-300' 
+                            : 'bg-red-500/20 text-red-300'
+                        }`}>
+                          {win.remainingCapacityKg} kg {isAr ? 'متبقي' : 'left'}
+                        </span>
+                      </div>
 
-                    <p className="text-xs text-slate-300 font-semibold">{trip.airline}</p>
-                    
-                    <div className="mt-3 pt-2 border-t border-slate-800/80 text-[11px] space-y-1">
-                      <div className="flex justify-between text-slate-400">
-                        <span>{isAr ? 'تاريخ الإقلاع:' : 'Departure:'}</span>
-                        <span className="font-bold text-slate-200">{trip.departureDate}</span>
-                      </div>
-                      <div className="flex justify-between text-brand-400 font-semibold">
-                        <span>{isAr ? 'التسليم قبل:' : 'Cut-off:'}</span>
-                        <span>{trip.cutoffDate}</span>
+                      <p className="text-xs text-slate-300 font-semibold">{win.airline || (isAr ? 'رحلة طيران معتمدة' : 'Verified Flight')}</p>
+                      
+                      <div className="mt-3 pt-2 border-t border-slate-800/80 text-[11px] space-y-1">
+                        <div className="flex justify-between text-slate-400">
+                          <span>{isAr ? 'تاريخ الإقلاع:' : 'Departure:'}</span>
+                          <span className="font-bold text-slate-200">{win.departureDisplay}</span>
+                        </div>
+                        <div className="flex justify-between text-brand-400 font-semibold">
+                          <span>{isAr ? 'التسليم قبل:' : 'Cut-off:'}</span>
+                          <span>{win.cutoffDisplay}</span>
+                        </div>
+                        <div className="flex justify-between text-emerald-400 font-semibold">
+                          <span>{isAr ? 'وصول متوقع:' : 'ETA:'}</span>
+                          <span>{win.etaDisplay}</span>
+                        </div>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Selected Window Notice */}
+            {selectedWindow && (
+              <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-200 leading-relaxed">
+                    <p className="font-black text-amber-300 mb-0.5">
+                      {isAr ? 'تنبيه الالتزام الزمني الإلزامي:' : 'Mandatory Timeline Commitment Notice:'}
+                    </p>
+                    <p>
+                      {isAr 
+                        ? `يجب تسليم الطرد لمكتب الشركة قبل تاريخ (${selectedWindow.cutoffDisplay}) لإنهاء الفحص الأمني والوزن قبل موعد الإقلاع المحدد (${selectedWindow.departureDisplay}).` 
+                        : `Parcel must be handed over to the hub prior to (${selectedWindow.cutoffDisplay}) for screening and weighing.`}
+                    </p>
                   </div>
-                );
-              })}
-            </div>
+                </div>
 
-            {/* Mandatory Time Commitment Notice & ETA */}
-            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <div className="text-xs text-amber-200 leading-relaxed">
-                  <p className="font-black text-amber-300 mb-0.5">
-                    {isAr ? 'تنبيه الالتزام الزمني الإلزامي:' : 'Mandatory Timeline Commitment Notice:'}
-                  </p>
-                  <p>
-                    {isAr 
-                      ? `يجب تسليم الطرد لمكتب الشركة قبل 3 أيام على الأقل من تاريخ الرحلة المحددة (قبل تاريخ ${selectedTrip.cutoffDate}) لإنهاء الفحص الأمني والوزن.` 
-                      : `Parcel must be handed over to the hub at least 3 days before flight date (prior to ${selectedTrip.cutoffDate}) for screening and weighing.`}
-                  </p>
+                <div className="pt-2 border-t border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-bold text-emerald-400 bg-slate-950/60 p-2.5 rounded-xl">
+                  <span>{isAr ? 'تاريخ التوصيل المتوقع للمستلم (ETA):' : 'Estimated Delivery Date (ETA):'}</span>
+                  <span className="text-sm font-black text-white bg-emerald-500/20 px-3 py-1 rounded-lg border border-emerald-500/30">
+                    {selectedWindow.etaDisplay} ({isAr ? 'خلال 3 أيام عمل من الرحلة' : 'Within 3 business days'})
+                  </span>
                 </div>
               </div>
-
-              <div className="pt-2 border-t border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-bold text-emerald-400 bg-slate-950/60 p-2.5 rounded-xl">
-                <span>{isAr ? 'تاريخ التوصيل المتوقع للمستلم (ETA):' : 'Estimated Delivery Date (ETA):'}</span>
-                <span className="text-sm font-black text-white bg-emerald-500/20 px-3 py-1 rounded-lg border border-emerald-500/30">
-                  {selectedTrip.etaDate} ({isAr ? 'خلال 3 أيام عمل من الرحلة' : 'Within 3 business days'})
-                </span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -879,12 +971,14 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
                     min="10"
                     step="10"
                     value={declaredValueUSD}
-                    onChange={(e) => setDeclaredValueUSD(Number(e.target.value))}
+                    onChange={(e) => setDeclaredValueUSD(Math.max(10, Number(e.target.value)))}
                     className="w-32 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-center text-sm font-bold text-brand-300 focus:outline-none focus:border-brand-400"
                   />
                 </div>
                 <span className="text-xs font-black text-emerald-400">
-                  {isAr ? `رسوم التأمين المحتسبة: $${insuranceFeeUSD.toFixed(2)}` : `Calculated Insurance: $${insuranceFeeUSD.toFixed(2)}`}
+                  {isAr 
+                    ? `رسوم التأمين المحتسبة: $${(quoteResult.insuranceFee || 0).toFixed(2)}` 
+                    : `Calculated Insurance: $${(quoteResult.insuranceFee || 0).toFixed(2)}`}
                 </span>
               </div>
             )}
@@ -910,7 +1004,7 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowProhibitedModal(true)}
-                  className="text-brand-400 underline font-bold mr-1 inline-flex items-center gap-1"
+                  className="text-brand-400 underline font-bold mr-1 inline-flex items-center gap-1 cursor-pointer"
                 >
                   <span>{isAr ? '(عرض قائمة المواد الممنوعة)' : '(View Prohibited Items List)'}</span>
                 </button>
@@ -951,7 +1045,7 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
                 <span>{isAr ? '4. الفاتورة الشفافة وبوابة الدفع' : '4. Transparent Invoice & Payment Checkout'}</span>
               </h4>
               <p className="text-xs text-slate-400 mt-0.5">
-                {isAr ? 'تفصيل دقيق لكافة الخدمات مع حرية الدفع بعملة بلدك' : 'Transparent fee breakdown with multi-currency checkout'}
+                {isAr ? 'تسعير رسمي معتمد من جدول أسعار الشحن وأسعار الصرف اليومية' : 'Official rates derived from shipping and FX tables'}
               </p>
             </div>
 
@@ -959,65 +1053,95 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
             <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-700 w-fit">
               <button
                 type="button"
-                onClick={() => setSelectedCurrency('SENDER')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                  selectedCurrency === 'SENDER' 
+                onClick={() => setSelectedCurrencyPreference('ORIGIN')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  selectedCurrencyPreference === 'ORIGIN' 
                     ? 'bg-brand-500 text-white shadow-md' 
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                {isAr ? 'دينار أردني (JOD)' : 'Sender (JOD / USD)'}
+                {originCountry === 'JO' ? (isAr ? 'دينار أردني (JOD)' : 'JOD') : (isAr ? 'دينار جزائري (DZD)' : 'DZD')}
               </button>
               <button
                 type="button"
-                onClick={() => setSelectedCurrency('RECIPIENT')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                  selectedCurrency === 'RECIPIENT' 
+                onClick={() => setSelectedCurrencyPreference('DESTINATION')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  selectedCurrencyPreference === 'DESTINATION' 
                     ? 'bg-brand-500 text-white shadow-md' 
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                {isAr ? 'دينار جزائري (DZD)' : 'Recipient (DZD)'}
+                {destinationCountry === 'DZ' ? (isAr ? 'دينار جزائري (DZD)' : 'DZD') : (isAr ? 'دينار أردني (JOD)' : 'JOD')}
               </button>
             </div>
           </div>
 
           {/* Calculations Breakdown */}
           <div className="space-y-4">
-            <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5 text-xs md:text-sm text-slate-300">
-              <div className="flex justify-between items-center">
-                <span>{isAr ? `أجور الشحن الأساسية (${chargeableWeightKg} كغ × $12.00)` : `Base Freight (${chargeableWeightKg} kg × $12.00)`}</span>
-                <span className="font-semibold text-white">{formatCurrency(baseShippingCostUSD)}</span>
+            {!quoteResult.available ? (
+              <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-400 text-xs flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <span>{quoteResult.error || (isAr ? 'تعرفة الشحن غير متوفرة لهذا المسار' : 'Shipping quote unavailable')}</span>
               </div>
-              
-              {packagingType !== 'NONE' && (
-                <div className="flex justify-between items-center text-brand-300">
-                  <span>{isAr ? `رسوم التغليف الإضافي (${packagingType === 'SECURE_BUBBLE' ? 'تغليف آمن فقاعي' : 'تغليف هدايا فاخر'})` : 'Packaging Fee'}</span>
-                  <span className="font-semibold">{formatCurrency(packagingFeeUSD)}</span>
+            ) : (
+              <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5 text-xs md:text-sm text-slate-300">
+                <div className="flex justify-between items-center">
+                  <span>
+                    {isAr 
+                      ? `أجور الشحن الأساسية (${quoteResult.billingWeightKg} كغ × ${quoteResult.ratePerKg?.toFixed(2)} ${quoteResult.baseCurrency})` 
+                      : `Base Freight (${quoteResult.billingWeightKg} kg × ${quoteResult.ratePerKg?.toFixed(2)} ${quoteResult.baseCurrency})`}
+                  </span>
+                  <span className="font-semibold text-white">
+                    {quoteResult.baseShippingCost?.toFixed(2)} {quoteResult.baseCurrency}
+                  </span>
                 </div>
-              )}
+                
+                {quoteResult.packagingFee ? (
+                  <div className="flex justify-between items-center text-brand-300">
+                    <span>{isAr ? `رسوم التغليف الإضافي (${packagingType === 'SECURE_BUBBLE' ? 'تغليف آمن فقاعي' : 'تغليف هدايا فاخر'})` : 'Packaging Fee'}</span>
+                    <span className="font-semibold">{quoteResult.packagingFee.toFixed(2)} {quoteResult.baseCurrency}</span>
+                  </div>
+                ) : null}
 
-              {insuranceRequested && (
-                <div className="flex justify-between items-center text-emerald-400">
-                  <span>{isAr ? `رسوم التأمين الشامل (1.5% من $${declaredValueUSD})` : 'Insurance Coverage Fee'}</span>
-                  <span className="font-semibold">{formatCurrency(insuranceFeeUSD)}</span>
+                {quoteResult.insuranceFee ? (
+                  <div className="flex justify-between items-center text-emerald-400">
+                    <span>{isAr ? `رسوم التأمين الشامل (1.5% من $${declaredValueUSD})` : 'Insurance Coverage Fee'}</span>
+                    <span className="font-semibold">{quoteResult.insuranceFee.toFixed(2)} {quoteResult.baseCurrency}</span>
+                  </div>
+                ) : null}
+
+                {quoteResult.localDeliveryFee ? (
+                  <div className="flex justify-between items-center text-blue-400">
+                    <span>{isAr ? 'أجور التوصيل المنزلي المحلي (Home Delivery)' : 'Doorstep Courier Delivery'}</span>
+                    <span className="font-semibold">{quoteResult.localDeliveryFee.toFixed(2)} {quoteResult.baseCurrency}</span>
+                  </div>
+                ) : null}
+
+                {/* Currency Conversion note if applied */}
+                {quoteResult.appliedFxRate && quoteResult.fxSide && quoteResult.fxSide !== 'NONE' && (
+                  <div className="pt-2 border-t border-slate-800/80 flex justify-between items-center text-[11px] text-slate-400">
+                    <span>{isAr ? `سعر الصرف المعتمد (${quoteResult.fxSide}):` : `Applied FX Rate (${quoteResult.fxSide}):`}</span>
+                    <span className="font-mono text-slate-300">
+                      1 {quoteResult.baseCurrency} = {quoteResult.appliedFxRate} {quoteResult.paymentCurrency}
+                    </span>
+                  </div>
+                )}
+
+                <div className="pt-3 mt-2 border-t border-slate-800 flex justify-between items-center text-slate-300 font-bold text-sm md:text-base">
+                  <span className="text-white">{isAr ? 'المبلغ الإجمالي المطلوب دفعه:' : 'Total Amount to Pay:'}</span>
+                  <div className="text-end">
+                    <span className="text-xl md:text-2xl font-black text-brand-400">
+                      {quoteResult.paymentAmount?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {quoteResult.paymentCurrency}
+                    </span>
+                    {quoteResult.paymentCurrency !== quoteResult.baseCurrency && (
+                      <div className="text-[11px] text-slate-400 font-normal">
+                        ({quoteResult.totalBaseAmount?.toFixed(2)} {quoteResult.baseCurrency})
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-
-              {deliveryType === 'HOME' && (
-                <div className="flex justify-between items-center text-blue-400">
-                  <span>{isAr ? 'أجور التوصيل المنزلي المحلي (Home Delivery)' : 'Doorstep Courier Delivery'}</span>
-                  <span className="font-semibold">{formatCurrency(localDeliveryFeeUSD)}</span>
-                </div>
-              )}
-
-              <div className="pt-3 mt-2 border-t border-slate-800 flex justify-between items-center text-slate-300 font-bold text-sm md:text-base">
-                <span className="text-white">{isAr ? 'المبلغ الإجمالي المطلوب دفعه:' : 'Total Amount to Pay:'}</span>
-                <span className="text-xl md:text-2xl font-black text-brand-400">
-                  {formatCurrency(totalCostUSD)}
-                </span>
               </div>
-            </div>
+            )}
 
             {/* Payment Gateway Grid */}
             <div className="pt-2 space-y-3">
@@ -1094,32 +1218,25 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
                 </div>
               </div>
 
-              {/* Integrated Bank Transfer Details & Receipt Uploader */}
+              {/* Bank Transfer Receipt Uploader */}
               {paymentGateway === 'BANK_TRANSFER' && (
                 <div className="bg-slate-900 border border-slate-700 p-4 rounded-2xl mt-3 space-y-3 animate-in fade-in slide-in-from-top-2">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <span className="text-xs font-bold text-white">{isAr ? 'بيانات الحساب البنكي المعتمد' : 'Official Bank Details'}</span>
-                    <span className="text-[10px] text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded-full">{isAr ? 'تحويل مباشر' : 'Direct'}</span>
+                    <span className="text-xs font-bold text-white">{isAr ? 'بيانات الحساب البنكي للإيداع:' : 'Bank Account Information:'}</span>
+                    <span className="text-[11px] font-mono text-brand-400">THOUESA LOGISTICS LLC</span>
                   </div>
-                  <div className="text-xs text-slate-300 space-y-1.5">
-                    <div className="flex justify-between items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                      <span className="text-slate-400">{isAr ? 'اسم البنك والمستفيد:' : 'Beneficiary:'}</span>
-                      <span className="font-bold text-white">{isAr ? 'البنك العربي - شركة ثويسة اللوجستية' : 'Arab Bank - THOUESA Logistics'}</span>
-                    </div>
-                    <div className="flex justify-between items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800 font-mono text-xs">
-                      <span className="text-slate-400">IBAN / RIB:</span>
-                      <span className="font-bold text-brand-300">JO98 ABAB 0000 0000 1234 56</span>
-                    </div>
+                  <div className="text-xs text-slate-300 space-y-1 font-mono">
+                    <p>IBAN: JO94 ARAB 1234 5678 9012 3456</p>
+                    <p>BANK: Arab Bank - Amman Main Branch</p>
                   </div>
 
                   <div className="pt-2 border-t border-slate-800">
-                    <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                      {isAr ? 'إرفاق إيصال التحويل (ضروري لتأكيد الطلب فوراً)' : 'Upload Transfer Receipt (Required)'}
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      {isAr ? 'إرفاق صورة إشعار التحويل البنكي (اختياري لتسريع التأكيد):' : 'Attach Bank Transfer Receipt (Optional):'}
                     </label>
-                    <input 
-                      type="file" 
-                      accept="image/*,.pdf" 
-                      className="text-xs text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-brand-300 hover:file:bg-slate-700 cursor-pointer"
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -1130,6 +1247,7 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
                           reader.readAsDataURL(file);
                         }
                       }}
+                      className="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer"
                     />
                   </div>
                 </div>
@@ -1138,35 +1256,42 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
           </div>
         </div>
 
-        {/* Mobile Navigation Buttons */}
-        <div className="md:hidden flex items-center justify-between pt-4 mt-4 border-t border-slate-800">
-          {wizardStep > 1 ? (
+        {/* Mobile Navigation Controls */}
+        <div className="md:hidden flex items-center justify-between gap-3 pt-2">
+          {wizardStep > 1 && (
             <button
               type="button"
-              onClick={() => setWizardStep(wizardStep - 1)}
-              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all"
+              onClick={() => setWizardStep(prev => Math.max(1, prev - 1))}
+              className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
             >
-              <ChevronRight className="w-4 h-4" />
-              <span>{isAr ? 'السابق' : 'Back'}</span>
+              {isAr ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+              <span>{isAr ? 'السابق' : 'Previous'}</span>
             </button>
-          ) : <div />}
+          )}
 
           {wizardStep < 4 ? (
             <button
               type="button"
-              onClick={() => setWizardStep(wizardStep + 1)}
-              className="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-brand-500/20 transition-all"
+              onClick={() => {
+                setFormValidationError(null);
+                if (wizardStep === 1 && !parcelDescription) {
+                  setFormValidationError(isAr ? 'يرجى كتابة وصف محتويات الطرد للمتابعة.' : 'Please enter parcel description.');
+                  return;
+                }
+                setWizardStep(prev => Math.min(4, prev + 1));
+              }}
+              className="flex-1 py-3 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-lg shadow-brand-500/20"
             >
               <span>{isAr ? 'التالي' : 'Next'}</span>
-              <ChevronLeft className="w-4 h-4" />
+              {isAr ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
             </button>
           ) : (
             <button
               type="submit"
-              disabled={isSubmitting || !prohibitedAgreed || !customsAgreed}
-              className="flex-1 ml-4 flex items-center justify-center gap-2 px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white font-black rounded-xl text-sm shadow-lg shadow-brand-500/30 disabled:opacity-50 transition-all"
+              disabled={isSubmitting || !prohibitedAgreed || !customsAgreed || !quoteResult.available}
+              className="flex-1 py-3.5 bg-brand-600 hover:bg-brand-500 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-brand-500/30"
             >
-              <CheckCircle2 className="w-5 h-5" />
+              <CheckCircle2 className="w-4 h-4" />
               <span>{isSubmitting ? (isAr ? 'جاري الإصدار...' : 'Processing...') : (isAr ? 'تأكيد الحجز والدفع' : 'Confirm & Pay')}</span>
             </button>
           )}
@@ -1176,7 +1301,7 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
         <div className="hidden md:flex justify-end pt-4 border-t border-slate-800">
           <button
             type="submit"
-            disabled={isSubmitting || !prohibitedAgreed || !customsAgreed}
+            disabled={isSubmitting || !prohibitedAgreed || !customsAgreed || !quoteResult.available}
             className="flex items-center justify-center gap-2.5 px-8 py-3.5 bg-brand-600 hover:bg-brand-500 text-white font-black rounded-xl text-sm md:text-base shadow-xl shadow-brand-500/30 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             <CheckCircle2 className="w-5 h-5" />
@@ -1196,8 +1321,8 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
               </h4>
               <button 
                 type="button" 
-                onClick={() => setShowProhibitedModal(false)}
-                className="text-slate-400 hover:text-white p-1"
+                onClick={() => setShowProhibitedModal(false)} 
+                className="text-slate-400 hover:text-white p-1 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1227,7 +1352,7 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
                 setProhibitedAgreed(true);
                 setShowProhibitedModal(false);
               }}
-              className="w-full py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-xl text-xs transition-all"
+              className="w-full py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-xl text-xs transition-all cursor-pointer"
             >
               {isAr ? 'فهمت وأتعهد بالالتزام بالقائمة' : 'I Understand & Agree to Comply'}
             </button>

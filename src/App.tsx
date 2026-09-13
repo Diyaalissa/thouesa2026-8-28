@@ -11,8 +11,11 @@ import {
   AuditLog,
   ThemeMode,
   Dispute,
+  PublicAnnouncement,
+  ShippingRate,
+  DailyExchangeRate,
 } from './types';
-import { DEMO_PROFILES, HUBS_DATA, THEMES } from './lib/constants';
+import { DEMO_PROFILES, HUBS_DATA, INITIAL_DAILY_EXCHANGE_RATES, INITIAL_PUBLIC_ANNOUNCEMENTS, INITIAL_SHIPPING_RATES, THEMES } from './lib/constants';
 import { Header } from './components/common/Header';
 import { AuthModal } from './components/common/AuthModal';
 import { LandingPage } from './components/landing/LandingPage';
@@ -90,6 +93,9 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [hubs, setHubs] = useState<Hub[]>(HUBS_DATA);
+  const [announcements, setAnnouncements] = useState<PublicAnnouncement[]>(INITIAL_PUBLIC_ANNOUNCEMENTS);
+  const [shippingRates, setShippingRates] = useState<ShippingRate[]>(INITIAL_SHIPPING_RATES);
+  const [exchangeRates, setExchangeRates] = useState<DailyExchangeRate[]>(INITIAL_DAILY_EXCHANGE_RATES);
   const [isLoading, setIsLoading] = useState(false);
 
   // Sync user when role changes
@@ -224,25 +230,33 @@ export default function App() {
     }
   };
 
-  const handleRegisterTrip = async (payload: any) => {
+  const handleRegisterTrip = async (payload: any): Promise<{ success: boolean; trip?: Trip; error?: string }> => {
     try {
-      const res = await safeFetchJson('/api/trips', {
+      const res = await safeFetchJson<any>('/api/trips', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       if (res?.trip) {
+        setTrips((prev) => {
+          const map = new Map<string, Trip>();
+          map.set(res.trip.id, res.trip);
+          prev.forEach((t) => {
+            if (!map.has(t.id)) map.set(t.id, t);
+          });
+          return Array.from(map.values());
+        });
         await fetchData();
-        return true;
+        return { success: true, trip: res.trip };
       }
       if (res?.error) {
-        alert(res.error);
+        return { success: false, error: res.error };
       }
-      return false;
-    } catch (err) {
+      return { success: false, error: 'Failed to register trip' };
+    } catch (err: any) {
       console.error('Register trip error:', err);
-      return false;
+      return { success: false, error: err.message || 'Error registering trip' };
     }
   };
 
@@ -536,6 +550,9 @@ export default function App() {
           <LandingPage
             locale={locale}
             hubs={activeHubs}
+            trips={trips}
+            announcements={announcements}
+            loading={isLoading}
             onNavigate={(role) => handleRoleChange(role)}
             onOpenAuth={(m) => {
               setAuthModalMode(m || 'SIGNUP');
@@ -551,6 +568,9 @@ export default function App() {
             shipments={shipments}
             locale={locale}
             hubs={activeHubs}
+            trips={trips}
+            shippingRates={shippingRates}
+            exchangeRates={exchangeRates}
             onRefreshShipments={fetchData}
             onCreateShipment={handleCreateShipment}
             onCancelShipment={handleCancelShipment}
@@ -575,7 +595,7 @@ export default function App() {
           />
         )}
 
-        {(currentRole === 'HUB_AGENT' || currentRole === 'HUB_MANAGER' || currentRole === 'PRICING_MANAGER' || currentRole === 'FINANCIAL_OFFICER') && (
+        {['HUB_AGENT', 'HUB_MANAGER', 'HUB_INSPECTOR', 'PRICING_MANAGER', 'FINANCIAL_OFFICER', 'EMPLOYEE'].includes(currentRole) && (
           <HubPortal
             currentUser={currentUser || (DEMO_PROFILES as any)[currentRole] || DEMO_PROFILES.HUB_AGENT}
             currentHub={currentHub}

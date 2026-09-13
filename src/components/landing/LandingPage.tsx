@@ -20,23 +20,159 @@ import {
   Search,
   QrCode,
   FileCheck,
+  Megaphone,
+  X,
+  Bell,
 } from 'lucide-react';
-import { Currency, Hub, ItemCategory, Locale, UserRole } from '../../types';
+import { Currency, Hub, ItemCategory, Locale, PublicAnnouncement, Trip, UserRole } from '../../types';
 import { calculateShippingQuote, formatCurrency } from '../../lib/crypto';
 import { HUBS_DATA, ROUTE_PRICING } from '../../lib/constants';
 
 interface LandingPageProps {
   locale: Locale;
   hubs?: Hub[];
+  trips?: Trip[];
+  announcements?: PublicAnnouncement[];
+  loading?: boolean;
   onNavigate: (role: UserRole) => void;
   onOpenAuth?: (mode?: 'SIGNIN' | 'SIGNUP' | 'EMPLOYEE') => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ locale, hubs, onNavigate, onOpenAuth }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({
+  locale,
+  hubs,
+  trips = [],
+  announcements = [],
+  loading = false,
+  onNavigate,
+  onOpenAuth,
+}) => {
   const isAr = locale === 'ar';
   const ArrowIcon = isAr ? ArrowLeft : ArrowRight;
 
   const activeHubs = (hubs && hubs.length > 0 ? hubs : HUBS_DATA).filter((h) => h.isActive !== false);
+
+  // Local UI state for dismissed banner IDs (does not mutate shared announcement records)
+  const [dismissedBannerIds, setDismissedBannerIds] = useState<string[]>([]);
+
+  // Publicly eligible announcements filtering
+  const eligibleAnnouncements = React.useMemo(() => {
+    if (!announcements || announcements.length === 0) return [];
+    const now = Date.now();
+
+    return announcements
+      .filter((ann) => {
+        // 1. Status MUST be explicitly ACTIVE
+        if (ann.status !== 'ACTIVE') return false;
+
+        // 2. startAt timestamp must be valid and in the past or now
+        const startTime = new Date(ann.startAt).getTime();
+        if (isNaN(startTime) || startTime > now) return false;
+
+        // 3. endAt timestamp if specified must be in the future or now
+        if (ann.endAt) {
+          const endTime = new Date(ann.endAt).getTime();
+          if (isNaN(endTime) || endTime < now) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        // Sort by priority DESC (higher number = higher priority)
+        const priorityDiff = (b.priority || 0) - (a.priority || 0);
+        if (priorityDiff !== 0) return priorityDiff;
+
+        // Then by startAt DESC (more recent first)
+        const timeDiff = new Date(b.startAt).getTime() - new Date(a.startAt).getTime();
+        if (timeDiff !== 0) return timeDiff;
+
+        // Stable secondary tie-breaker by ID
+        return a.id.localeCompare(b.id);
+      });
+  }, [announcements]);
+
+  // Top Banner announcement (maximum 1 highest priority, not dismissed)
+  const topBannerAnnouncement = React.useMemo(() => {
+    return eligibleAnnouncements.find(
+      (ann) => ann.placement === 'TOP_BANNER' && !dismissedBannerIds.includes(ann.id)
+    );
+  }, [eligibleAnnouncements, dismissedBannerIds]);
+
+  // Home Featured announcements (up to 3 items)
+  const homeFeaturedAnnouncements = React.useMemo(() => {
+    return eligibleAnnouncements.filter((ann) => ann.placement === 'HOME_FEATURED').slice(0, 3);
+  }, [eligibleAnnouncements]);
+
+  // Below Schedule announcements (up to 2 items)
+  const belowScheduleAnnouncements = React.useMemo(() => {
+    return eligibleAnnouncements.filter((ann) => ann.placement === 'BELOW_SCHEDULE').slice(0, 2);
+  }, [eligibleAnnouncements]);
+
+  // Helper to format date & time for public flight schedules
+  const formatFlightScheduleDate = (isoString?: string) => {
+    if (!isoString) return '';
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return isoString;
+      return d.toLocaleDateString(isAr ? 'ar-JO' : 'en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return isoString || '';
+    }
+  };
+
+  // Helper to resolve Hub location details for origin and destination
+  const getHubDisplay = (hubIdOrCode: string) => {
+    const hub = activeHubs.find((h) => h.id === hubIdOrCode || h.code === hubIdOrCode);
+    if (hub) {
+      return {
+        city: isAr ? hub.cityAr : hub.cityEn,
+        name: isAr ? hub.nameAr : hub.nameEn,
+        code: hub.code || hub.countryCode,
+      };
+    }
+    if (hubIdOrCode?.toLowerCase().includes('amm') || hubIdOrCode?.toLowerCase().includes('jor')) {
+      return { city: isAr ? 'عمان' : 'Amman', name: isAr ? 'مركز عمان' : 'Amman Hub', code: 'AMM' };
+    }
+    if (hubIdOrCode?.toLowerCase().includes('alg') || hubIdOrCode?.toLowerCase().includes('dza')) {
+      return { city: isAr ? 'الجزائر' : 'Algiers', name: isAr ? 'مركز الجزائر' : 'Algiers Hub', code: 'ALG' };
+    }
+    return { city: hubIdOrCode, name: hubIdOrCode, code: hubIdOrCode };
+  };
+
+  // Publicly eligible upcoming delivery schedules
+  const eligiblePublicTrips = React.useMemo(() => {
+    if (!trips || trips.length === 0) return [];
+    const now = Date.now();
+    const ALLOWED_STATUSES: Array<Trip['status']> = ['VERIFIED', 'CONFIRMED'];
+
+    return trips
+      .filter((trip) => {
+        // 1. Must be strictly verified/confirmed by Hub Operations
+        if (!ALLOWED_STATUSES.includes(trip.status)) return false;
+
+        // 2. Must be upcoming in the future (departure > current time)
+        const depTime = new Date(trip.departureTime).getTime();
+        if (isNaN(depTime) || depTime <= now) return false;
+
+        // 3. Must have remaining transport capacity
+        const available = Number(trip.availableWeightKg) || 0;
+        const allocated = Number(trip.allocatedWeightKg) || 0;
+        const remaining = Math.max(0, available - allocated);
+
+        return remaining > 0;
+      })
+      .sort((a, b) => {
+        const timeDiff = new Date(a.departureTime).getTime() - new Date(b.departureTime).getTime();
+        if (timeDiff !== 0) return timeDiff;
+        return a.id.localeCompare(b.id);
+      });
+  }, [trips]);
 
   const uniqueCountries = React.useMemo(() => {
     const countries = new Map<string, { code: string; nameAr: string; nameEn: string }>();
@@ -176,8 +312,85 @@ export const LandingPage: React.FC<LandingPageProps> = ({ locale, hubs, onNaviga
     }
   };
 
+  const handleAnnouncementCta = (target?: string) => {
+    if (!target) {
+      handleSendNowClick();
+      return;
+    }
+    if (target === 'SENDER') {
+      handleSendNowClick();
+    } else if (target === 'TRAVELER') {
+      onNavigate('TRAVELER');
+    } else if (target === 'CALCULATOR') {
+      const calcEl = document.getElementById('shipping-calculator');
+      if (calcEl) {
+        calcEl.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        handleSendNowClick();
+      }
+    } else if (target === 'SCHEDULE') {
+      const schedEl = document.getElementById('delivery-schedule');
+      if (schedEl) {
+        schedEl.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        handleSendNowClick();
+      }
+    } else {
+      handleSendNowClick();
+    }
+  };
+
   return (
     <div className="space-y-12 pb-16" dir={isAr ? 'rtl' : 'ltr'}>
+      {/* 0. Top Placement Announcement Banner */}
+      {topBannerAnnouncement && (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-950 via-slate-900 to-slate-950 border border-brand-500/30 p-4 sm:p-5 shadow-lg text-white">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-brand-500/20 text-brand-400 border border-brand-500/30 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+                <Megaphone className="w-4 h-4 text-brand-400" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-slate-100">
+                    {isAr ? topBannerAnnouncement.titleAr : (topBannerAnnouncement.titleEn || topBannerAnnouncement.titleAr)}
+                  </span>
+                  {(topBannerAnnouncement.badgeAr || topBannerAnnouncement.badgeEn) && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-500/20 text-brand-300 border border-brand-500/30">
+                      {isAr ? topBannerAnnouncement.badgeAr : (topBannerAnnouncement.badgeEn || topBannerAnnouncement.badgeAr)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
+                  {isAr ? topBannerAnnouncement.bodyAr : (topBannerAnnouncement.bodyEn || topBannerAnnouncement.bodyAr)}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+              {(topBannerAnnouncement.ctaLabelAr || topBannerAnnouncement.ctaLabelEn) && (
+                <button
+                  onClick={() => handleAnnouncementCta(topBannerAnnouncement.ctaTarget)}
+                  className="px-3.5 py-1.5 bg-brand-500 hover:bg-brand-400 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>{isAr ? topBannerAnnouncement.ctaLabelAr : (topBannerAnnouncement.ctaLabelEn || topBannerAnnouncement.ctaLabelAr)}</span>
+                  <ArrowIcon className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {topBannerAnnouncement.isDismissible && (
+                <button
+                  onClick={() => setDismissedBannerIds((prev) => [...prev, topBannerAnnouncement.id])}
+                  aria-label={isAr ? 'إغلاق الإعلان' : 'Dismiss announcement'}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. Hero Section with Luxury Cover Background */}
       <section className="relative overflow-hidden rounded-3xl bg-slate-950 text-white p-8 md:p-14 border border-slate-800 shadow-2xl">
         {/* Cover image background with high-end atmospheric blending */}
@@ -352,8 +565,66 @@ export const LandingPage: React.FC<LandingPageProps> = ({ locale, hubs, onNaviga
         </div>
       </section>
 
+      {/* Featured Announcements & Platform Notices (HOME_FEATURED) */}
+      {homeFeaturedAnnouncements.length > 0 && (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-brand-500" />
+              <h3 className="text-lg sm:text-xl font-black text-slate-900">
+                {isAr ? 'إعلانات وتحديثات منصة ثويسا' : 'Featured Announcements & Platform Updates'}
+              </h3>
+            </div>
+          </div>
+
+          <div className={`grid grid-cols-1 ${homeFeaturedAnnouncements.length > 1 ? 'md:grid-cols-2 lg:grid-cols-3' : ''} gap-5`}>
+            {homeFeaturedAnnouncements.map((ann) => (
+              <div
+                key={ann.id}
+                className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs hover:border-brand-300 hover:shadow-md transition-all flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    {(ann.badgeAr || ann.badgeEn) ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand-50 text-brand-700 border border-brand-200">
+                        {isAr ? ann.badgeAr : (ann.badgeEn || ann.badgeAr)}
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        {isAr ? 'إعلان مميز' : 'Featured'}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-slate-400">
+                      {new Date(ann.startAt).toLocaleDateString(isAr ? 'ar-JO' : 'en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-sm mb-2 leading-snug">
+                    {isAr ? ann.titleAr : (ann.titleEn || ann.titleAr)}
+                  </h4>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    {isAr ? ann.bodyAr : (ann.bodyEn || ann.bodyAr)}
+                  </p>
+                </div>
+
+                {(ann.ctaLabelAr || ann.ctaLabelEn) && (
+                  <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-end">
+                    <button
+                      onClick={() => handleAnnouncementCta(ann.ctaTarget)}
+                      className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>{isAr ? ann.ctaLabelAr : (ann.ctaLabelEn || ann.ctaLabelAr)}</span>
+                      <ArrowIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* 2. Interactive Live Instant Shipping Calculator */}
-      <section className="bg-white rounded-3xl p-6 md:p-10 border border-slate-200 shadow-sm">
+      <section id="shipping-calculator" className="bg-white rounded-3xl p-6 md:p-10 border border-slate-200 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center">
             <Calculator className="w-5 h-5" />
@@ -740,52 +1011,148 @@ export const LandingPage: React.FC<LandingPageProps> = ({ locale, hubs, onNaviga
         </div>
       </section>
 
-      {/* 4. Confirmed Traveler Capacity & Hub Network */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Verified Trips */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Plane className="w-5 h-5 text-brand-500" />
-              <h4 className="font-bold text-slate-900 text-sm">
-                {isAr ? 'سعات الأمتعة المتاحة لرحلات المسافرين القادمة' : 'Verified Upcoming Traveler Routes'}
-              </h4>
+      {/* 4. Confirmed Delivery Opportunities & Hub Network */}
+      <section id="delivery-schedule" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Verified Delivery Schedule */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Plane className="w-5 h-5 text-brand-500" />
+                <h4 className="font-bold text-slate-900 text-sm">
+                  {isAr ? 'مواعيد التوصيل والرحلات المعتمدة القادمة' : 'Upcoming Verified Delivery Schedules'}
+                </h4>
+              </div>
+              <span className="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
+                {isAr ? 'معتمدة وموثقة' : 'Verified by Hub'}
+              </span>
             </div>
-            <span className="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">
-              {isAr ? 'مؤكدة بـ PNR' : 'PNR Verified'}
-            </span>
+
+            <p className="text-xs text-slate-500 mb-4">
+              {isAr
+                ? 'مواعيد التوصيل القادمة بناءً على الرحلات المعتمدة والمفحوصة في THOUESA.'
+                : 'Upcoming delivery schedules based on verified flights across THOUESA hubs.'}
+            </p>
+
+            {loading ? (
+              <div className="p-6 text-center bg-slate-50 border border-slate-200 rounded-2xl">
+                <div className="inline-block w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mb-2" />
+                <p className="text-xs text-slate-500 font-medium">
+                  {isAr ? 'جاري تحميل مواعيد التوصيل...' : 'Loading delivery schedules...'}
+                </p>
+              </div>
+            ) : eligiblePublicTrips.length === 0 ? (
+              <div className="p-6 text-center bg-slate-50 border border-slate-200 rounded-2xl">
+                <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                <p className="font-bold text-slate-700 text-xs">
+                  {isAr ? 'لا توجد مواعيد توصيل قادمة متاحة حالياً' : 'No upcoming delivery schedules available at the moment'}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {isAr
+                    ? 'يتم تحديث المواعيد تلقائياً فور اعتماد وتوثيق رحلات المسافرين من قِبل مراكز العمليات.'
+                    : 'Delivery schedules are automatically updated as traveler flights are verified by our hub operations.'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {eligiblePublicTrips.slice(0, 5).map((trip) => {
+                  const originInfo = getHubDisplay(trip.originHubId);
+                  const destInfo = getHubDisplay(trip.destinationHubId);
+                  const available = Number(trip.availableWeightKg) || 0;
+                  const allocated = Number(trip.allocatedWeightKg) || 0;
+                  const remainingKg = Math.max(0, available - allocated);
+
+                  return (
+                    <div
+                      key={trip.id}
+                      onClick={handleSendNowClick}
+                      className="group p-3.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl flex items-center justify-between text-xs transition-colors cursor-pointer"
+                    >
+                      <div className="space-y-1">
+                        <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <span>{originInfo.city} ({originInfo.code})</span>
+                          <span className="text-slate-400">➔</span>
+                          <span>{destInfo.city} ({destInfo.code})</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                          <span className="font-medium text-slate-700">{trip.airline} ({trip.flightNumber})</span>
+                          <span>•</span>
+                          <span>{isAr ? 'الإقلاع:' : 'Dep:'} {formatFlightScheduleDate(trip.departureTime)}</span>
+                          {trip.arrivalTime && (
+                            <>
+                              <span>•</span>
+                              <span>{isAr ? 'الوصول المتوقع:' : 'Arrival:'} {formatFlightScheduleDate(trip.arrivalTime)}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-left shrink-0 mr-2 rtl:mr-0 rtl:ml-2">
+                        <span className="font-bold text-emerald-700 block">
+                          {remainingKg.toFixed(1)} {isAr ? 'كغم متاحة' : 'kg available'}
+                        </span>
+                        <span className="text-[10px] text-brand-600 group-hover:underline flex items-center gap-0.5 justify-end">
+                          <span>{isAr ? 'اشحن الآن' : 'Ship Now'}</span>
+                          <ArrowIcon className="w-3 h-3" />
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Below Schedule Notice / Announcement Cards */}
+            {belowScheduleAnnouncements.length > 0 && (
+              <div className="mt-4 space-y-2.5">
+                {belowScheduleAnnouncements.map((ann) => (
+                  <div
+                    key={ann.id}
+                    className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-bold text-slate-900 flex items-center gap-2">
+                          <span>{isAr ? ann.titleAr : (ann.titleEn || ann.titleAr)}</span>
+                          {(ann.badgeAr || ann.badgeEn) && (
+                            <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md font-semibold">
+                              {isAr ? ann.badgeAr : (ann.badgeEn || ann.badgeAr)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">
+                          {isAr ? ann.bodyAr : (ann.bodyEn || ann.bodyAr)}
+                        </p>
+                      </div>
+                    </div>
+                    {(ann.ctaLabelAr || ann.ctaLabelEn) && (
+                      <button
+                        onClick={() => handleAnnouncementCta(ann.ctaTarget)}
+                        className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-xl shrink-0 cursor-pointer self-end sm:self-center"
+                      >
+                        {isAr ? ann.ctaLabelAr : (ann.ctaLabelEn || ann.ctaLabelAr)}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="space-y-3">
-            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
-              <div>
-                <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                  <span>{isAr ? 'عمان (AMM)' : 'Amman (AMM)'}</span>
-                  <span>➔</span>
-                  <span>{isAr ? 'الجزائر العاصمة (ALG)' : 'Algiers (ALG)'}</span>
-                </div>
-                <p className="text-slate-500 text-[11px] mt-0.5">Royal Jordanian (RJ-511) • رحلة بعد 18 ساعة</p>
-              </div>
-              <div className="text-left">
-                <span className="font-bold text-emerald-700 block">8.5 كغم متاحة</span>
-                <span className="text-[10px] text-slate-400">تأمين محجوز ($650)</span>
-              </div>
-            </div>
-
-            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
-              <div>
-                <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                  <span>{isAr ? 'القاهرة (CAI)' : 'Cairo (CAI)'}</span>
-                  <span>➔</span>
-                  <span>{isAr ? 'عمان (AMM)' : 'Amman (AMM)'}</span>
-                </div>
-                <p className="text-slate-500 text-[11px] mt-0.5">EgyptAir (MS-719) • رحلة بعد 42 ساعة</p>
-              </div>
-              <div className="text-left">
-                <span className="font-bold text-emerald-700 block">11.0 كغم متاحة</span>
-                <span className="text-[10px] text-slate-400">تأمين محجوز ($200)</span>
-              </div>
-            </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span>
+              {isAr
+                ? `الرحلات المعتمدة المتاحة: ${eligiblePublicTrips.length}`
+                : `Verified active schedules: ${eligiblePublicTrips.length}`}
+            </span>
+            <button
+              onClick={handleSendNowClick}
+              className="font-bold text-brand-600 hover:text-brand-500 flex items-center gap-1 cursor-pointer"
+            >
+              <span>{isAr ? 'حجز موعد شحن' : 'Book Delivery Window'}</span>
+              <ArrowIcon className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
