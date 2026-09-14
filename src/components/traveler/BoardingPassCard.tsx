@@ -1,7 +1,8 @@
 import React from 'react';
-import { Trip, Locale, Hub } from '../../types';
+import { Trip, Locale, Hub, ShippingRate, DailyExchangeRate } from '../../types';
 import { Plane, AlertTriangle, CheckCircle2, Phone, MapPin, Sparkles, Scale, Clock, ShieldCheck } from 'lucide-react';
 import { StatusBadge } from '../common/StatusBadge';
+import { findShippingRate } from '../../lib/hubFinancialPreview';
 
 interface BoardingPassCardProps {
   trip: Trip;
@@ -11,6 +12,8 @@ interface BoardingPassCardProps {
   onCheckIn?: () => void;
   isCheckInAvailable?: boolean;
   onSelect?: () => void;
+  shippingRates?: ShippingRate[];
+  exchangeRates?: DailyExchangeRate[];
 }
 
 export const BoardingPassCard: React.FC<BoardingPassCardProps> = ({
@@ -21,6 +24,8 @@ export const BoardingPassCard: React.FC<BoardingPassCardProps> = ({
   onCheckIn,
   isCheckInAvailable,
   onSelect,
+  shippingRates = [],
+  exchangeRates = [],
 }) => {
   const isAr = locale === 'ar';
   
@@ -52,6 +57,21 @@ export const BoardingPassCard: React.FC<BoardingPassCardProps> = ({
   const allocated = trip.allocatedWeightKg || 0;
   const total = trip.availableWeightKg || 1;
   const capacityPct = Math.min(100, Math.round((allocated / total) * 100));
+
+  // Dynamic TRAVELER_COMPENSATION lookup
+  const originCountry = originHub ? (originHub.countryCode === 'JOR' ? 'JO' : originHub.countryCode === 'DZA' ? 'DZ' : originHub.countryCode) : undefined;
+  const destCountry = destHub ? (destHub.countryCode === 'JOR' ? 'JO' : destHub.countryCode === 'DZA' ? 'DZ' : destHub.countryCode) : undefined;
+
+  const activeRate = (originCountry && destCountry) ? findShippingRate(
+    shippingRates,
+    originCountry,
+    destCountry,
+    'TRAVELER_COMPENSATION',
+    'SEND_PARCEL'
+  ) : undefined;
+
+  const ratePerKg = activeRate ? activeRate.ratePerKg : (trip.pricePerKgEarned || 0);
+  const estimatedEarnings = ratePerKg > 0 ? Number((total * ratePerKg).toFixed(2)) : (trip.totalEarningsEstimated || 0);
 
   return (
     <div 
@@ -143,7 +163,10 @@ export const BoardingPassCard: React.FC<BoardingPassCardProps> = ({
           
           <div className="flex justify-between items-center text-[10px] text-slate-400">
             <span>{isAr ? `متاح: ${total - allocated} كغ` : `Remaining: ${total - allocated} kg`}</span>
-            <span>{isAr ? `الأرباح المقدرة: $${trip.totalEarningsEstimated}` : `Est. Earnings: $${trip.totalEarningsEstimated}`}</span>
+            <span>
+              {isAr ? `الأرباح المقدرة: $${estimatedEarnings}` : `Est. Earnings: $${estimatedEarnings}`}
+              {ratePerKg > 0 && ` ($${ratePerKg}/kg)`}
+            </span>
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { EscrowWallet, Locale, Trip, User } from '../../types';
+import { EscrowWallet, Locale, Trip, User, ShippingRate, DailyExchangeRate } from '../../types';
 import { TravelerGamificationHeader } from './TravelerGamificationHeader';
 import { SmartNudgesBanner } from './SmartNudgesBanner';
 import { UpcomingTripCard } from './UpcomingTripCard';
@@ -16,6 +16,8 @@ interface TravelerDashboardViewProps {
   onNavigateTab: (tab: any) => void;
   onAddNewTrip: () => void;
   onOpenQR: (trip: Trip) => void;
+  shippingRates?: ShippingRate[];
+  exchangeRates?: DailyExchangeRate[];
 }
 
 export const TravelerDashboardView: React.FC<TravelerDashboardViewProps> = ({
@@ -26,6 +28,8 @@ export const TravelerDashboardView: React.FC<TravelerDashboardViewProps> = ({
   onNavigateTab,
   onAddNewTrip,
   onOpenQR,
+  shippingRates = [],
+  exchangeRates = [],
 }) => {
   const isAr = locale === 'ar';
   const [isMobileCurrencyModalOpen, setIsMobileCurrencyModalOpen] = useState(false);
@@ -90,6 +94,8 @@ export const TravelerDashboardView: React.FC<TravelerDashboardViewProps> = ({
             locale={locale}
             onViewBag={() => onNavigateTab('MY_BAG')}
             onAddNewTrip={onAddNewTrip}
+            shippingRates={shippingRates}
+            exchangeRates={exchangeRates}
           />
 
           {/* Secondary Quick Stats / Mini Manifest Preview if trip exists */}
@@ -152,7 +158,7 @@ export const TravelerDashboardView: React.FC<TravelerDashboardViewProps> = ({
 
           {/* Desktop Interactive Currency Exchange Widget */}
           <div className="hidden lg:block">
-            <CurrencyExchangeWidget locale={locale} />
+            <CurrencyExchangeWidget locale={locale} exchangeRates={exchangeRates} />
           </div>
 
           {/* Quick Actions */}
@@ -177,6 +183,7 @@ export const TravelerDashboardView: React.FC<TravelerDashboardViewProps> = ({
         isModal={true}
         isOpen={isMobileCurrencyModalOpen}
         onClose={() => setIsMobileCurrencyModalOpen(false)}
+        exchangeRates={exchangeRates}
       />
     </div>
   );

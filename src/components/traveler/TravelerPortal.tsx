@@ -24,7 +24,7 @@ import {
   Trash2,
   XCircle, User as UserIcon, Bell, Info, ShieldAlert, RefreshCw, Zap, MessageCircle, Home, Briefcase, Settings, FileText, ChevronRight, History, Scale, MoreHorizontal, Phone
 } from 'lucide-react';
-import { EscrowWallet, Hub, Locale, Manifest, Shipment, Trip, User } from '../../types';
+import { EscrowWallet, Hub, Locale, Manifest, Shipment, Trip, User, ShippingRate, DailyExchangeRate } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
 import { QRModal } from '../common/QRModal';
 import { TripManager } from './TripManager';
@@ -58,6 +58,8 @@ interface TravelerPortalProps {
   onLockEscrow: (tripId: string) => Promise<boolean>;
   onWithdrawEarnings: (amount: number, payoutMethod: string) => Promise<boolean>;
   onEmergencyUnassign: (tripId: string, reason: string) => Promise<boolean>;
+  shippingRates?: ShippingRate[];
+  exchangeRates?: DailyExchangeRate[];
 }
 
 export const TravelerPortal: React.FC<TravelerPortalProps> = ({
@@ -73,6 +75,8 @@ export const TravelerPortal: React.FC<TravelerPortalProps> = ({
   onLockEscrow,
   onWithdrawEarnings,
   onEmergencyUnassign,
+  shippingRates = [],
+  exchangeRates = [],
 }) => {
   const isAr = locale === 'ar';
   const ArrowIcon = isAr ? ArrowLeft : ArrowRight;
@@ -538,6 +542,8 @@ export const TravelerPortal: React.FC<TravelerPortalProps> = ({
                 }
               }}
               onOpenQR={(trip) => handleOpenQR(trip)}
+              shippingRates={shippingRates}
+              exchangeRates={exchangeRates}
             />
           )}
 
@@ -665,6 +671,8 @@ export const TravelerPortal: React.FC<TravelerPortalProps> = ({
                           originHub={originHub} 
                           destHub={destHub} 
                           locale={locale} 
+                          shippingRates={shippingRates}
+                          exchangeRates={exchangeRates}
                           onCheckIn={async () => {
                             try {
                               const res = await fetch(`/api/trips/${trip.id}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
@@ -918,6 +926,8 @@ export const TravelerPortal: React.FC<TravelerPortalProps> = ({
         currentUserPhone={currentUser.phone}
         locale={locale}
         onRegisterTrip={onRegisterTrip}
+        shippingRates={shippingRates}
+        exchangeRates={exchangeRates}
         onSuccess={(newTrip) => {
           onRefreshData();
           if (newTrip?.id) {

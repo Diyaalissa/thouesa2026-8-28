@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { RefreshCw, ArrowRightLeft, DollarSign, X, Check } from 'lucide-react';
-import { Locale } from '../../types';
+import { DailyExchangeRate, Locale } from '../../types';
 
 interface CurrencyExchangeWidgetProps {
   locale: Locale;
   isModal?: boolean;
   isOpen?: boolean;
   onClose?: () => void;
+  exchangeRates?: DailyExchangeRate[];
 }
 
 export const CurrencyExchangeWidget: React.FC<CurrencyExchangeWidgetProps> = ({
@@ -14,6 +15,7 @@ export const CurrencyExchangeWidget: React.FC<CurrencyExchangeWidgetProps> = ({
   isModal = false,
   isOpen = true,
   onClose,
+  exchangeRates = [],
 }) => {
   const isAr = locale === 'ar';
 
@@ -22,14 +24,18 @@ export const CurrencyExchangeWidget: React.FC<CurrencyExchangeWidgetProps> = ({
 
   if (isModal && !isOpen) return null;
 
-  // Fixed conversion rates
-  // 1 USD = 0.709 JOD = 134.50 DZD
-  // 1 JOD = 1.41 USD = 189.70 DZD
-  // 1 DZD = 0.0074 USD = 0.00527 JOD
+  // Active rate pairs if available from shared exchangeRates
+  const jodDzdPair = exchangeRates.find(
+    (r) => (r.baseCurrency === 'JOD' && r.quoteCurrency === 'DZD') && r.isActive !== false
+  );
+
   const calculateRates = (val: number, base: 'USD' | 'JOD' | 'DZD') => {
     let usd = 0;
     let jod = 0;
     let dzd = 0;
+
+    // Use shared buyRate/sellRate if available
+    const jodToDzdRate = jodDzdPair ? jodDzdPair.buyRate : 189.703;
 
     if (base === 'USD') {
       usd = val;
@@ -38,10 +44,10 @@ export const CurrencyExchangeWidget: React.FC<CurrencyExchangeWidgetProps> = ({
     } else if (base === 'JOD') {
       usd = val * 1.4104;
       jod = val;
-      dzd = val * 189.703;
+      dzd = val * jodToDzdRate;
     } else if (base === 'DZD') {
       usd = val * 0.007435;
-      jod = val * 0.005271;
+      jod = jodToDzdRate > 0 ? val / jodToDzdRate : val * 0.005271;
       dzd = val;
     }
 

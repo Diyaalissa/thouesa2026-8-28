@@ -3,15 +3,19 @@ import {
   Plane, ShieldCheck, ShieldAlert, Clock, Sun, Cloud, Calendar, 
   Package, ChevronRight, AlertTriangle, Sparkles, DollarSign 
 } from 'lucide-react';
-import { Locale, Trip } from '../../types';
+import { DailyExchangeRate, Locale, ShippingRate, Trip } from '../../types';
 import { formatCurrency } from '../../lib/crypto';
 import { HUBS_DATA } from '../../lib/constants';
+import { StatusBadge } from '../common/StatusBadge';
+import { findShippingRate, calculateFxConversion } from '../../lib/hubFinancialPreview';
 
 interface UpcomingTripCardProps {
   trip: Trip | null | undefined;
   locale: Locale;
   onViewBag: () => void;
   onAddNewTrip?: () => void;
+  shippingRates?: ShippingRate[];
+  exchangeRates?: DailyExchangeRate[];
 }
 
 export const UpcomingTripCard: React.FC<UpcomingTripCardProps> = ({
@@ -19,6 +23,8 @@ export const UpcomingTripCard: React.FC<UpcomingTripCardProps> = ({
   locale,
   onViewBag,
   onAddNewTrip,
+  shippingRates = [],
+  exchangeRates = [],
 }) => {
   const isAr = locale === 'ar';
 
@@ -85,6 +91,21 @@ export const UpcomingTripCard: React.FC<UpcomingTripCardProps> = ({
   const allocated = trip.allocatedWeightKg || 0;
   const percentage = Math.min(100, Math.round((allocated / totalCapacity) * 100));
 
+  // Dynamic TRAVELER_COMPENSATION lookup
+  const originCountry = originHub.countryCode === 'JOR' ? 'JO' : originHub.countryCode === 'DZA' ? 'DZ' : originHub.countryCode;
+  const destCountry = destHub.countryCode === 'JOR' ? 'JO' : destHub.countryCode === 'DZA' ? 'DZ' : destHub.countryCode;
+
+  const travelerRate = findShippingRate(
+    shippingRates,
+    originCountry,
+    destCountry,
+    'TRAVELER_COMPENSATION',
+    'SEND_PARCEL'
+  );
+
+  const compRate = travelerRate ? travelerRate.ratePerKg : (trip.pricePerKgEarned || 0);
+  const estEarnings = compRate > 0 ? Number((totalCapacity * compRate).toFixed(2)) : (trip.totalEarningsEstimated || 0);
+
   // Countdown approximation
   const departureDate = new Date(trip.departureTime);
   const now = new Date();
@@ -115,6 +136,7 @@ export const UpcomingTripCard: React.FC<UpcomingTripCardProps> = ({
                 {trip.airline || 'Royal Jordanian'}
               </span>
               <span className="text-slate-400">#{trip.id.substring(0, 8).toUpperCase()}</span>
+              <StatusBadge status={trip.status} locale={locale} size="sm" />
             </div>
 
             {/* Destination Weather & Local Time Badge */}
@@ -191,8 +213,15 @@ export const UpcomingTripCard: React.FC<UpcomingTripCardProps> = ({
           <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-100 space-y-1">
             <span className="text-[11px] font-bold text-emerald-700 block">{isAr ? 'الأرباح المقدرة' : 'Est. Earnings'}</span>
             <div className="flex items-baseline gap-1">
-              <span className="text-xl font-black text-emerald-700">{formatCurrency(trip.totalEarningsEstimated || 180, 'USD')}</span>
+              <span className="text-xl font-black text-emerald-700">
+                {estEarnings > 0 ? formatCurrency(estEarnings, 'USD') : (isAr ? 'قيد الاحتساب' : 'Pending Rate')}
+              </span>
             </div>
+            {compRate > 0 && (
+              <span className="text-[10px] text-emerald-600 block font-medium">
+                ({compRate} USD/kg)
+              </span>
+            )}
           </div>
         </div>
 

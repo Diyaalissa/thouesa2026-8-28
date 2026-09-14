@@ -2,6 +2,8 @@ import { Request, Response, Router } from 'express';
 import { db } from '../store';
 import { Shipment, Trip, TripStatus } from '../../src/types';
 import { ROUTE_PRICING } from '../../src/lib/constants';
+import { INITIAL_SHIPPING_RATES } from '../../src/lib/hubOperationsData';
+import { findShippingRate } from '../../src/lib/hubFinancialPreview';
 import { broadcastNotification } from './notifications';
 
 export const tripsRouter = Router();
@@ -59,12 +61,23 @@ tripsRouter.post('/', (req: Request, res: Response) => {
     });
   }
 
-  const route = ROUTE_PRICING.find(
-    (r) => r.originCountry === originHub.countryCode && r.destinationCountry === destHub.countryCode
-  ) || { travelerShareKg: 12.0 };
+  // Lookup active TRAVELER_COMPENSATION rate for the route (Zero fallback principle)
+  const normOrigin = originHub.countryCode === 'JOR' ? 'JO' : originHub.countryCode === 'DZA' ? 'DZ' : originHub.countryCode;
+  const normDest = destHub.countryCode === 'JOR' ? 'JO' : destHub.countryCode === 'DZA' ? 'DZ' : destHub.countryCode;
+
+  const travelerRate = findShippingRate(
+    INITIAL_SHIPPING_RATES,
+    normOrigin,
+    normDest,
+    'TRAVELER_COMPENSATION',
+    'SEND_PARCEL'
+  );
 
   const weight = Number(availableWeightKg);
-  const pricePerKg = route.travelerShareKg;
+  // If active traveler compensation rate exists, use its ratePerKg; otherwise fallback to route baseline
+  const pricePerKg = travelerRate ? travelerRate.ratePerKg : (ROUTE_PRICING.find(
+    (r) => r.originCountry === originHub.countryCode && r.destinationCountry === destHub.countryCode
+  )?.travelerShareKg || 12.0);
   const estimatedEarnings = Number((weight * pricePerKg).toFixed(2));
 
   // Initial required escrow deposit estimated at 50$ per kg (or exact package declared value upon assignment)

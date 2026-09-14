@@ -76,6 +76,10 @@ export interface HubPortalProps {
   onDestinationIntake: (payload: any) => Promise<boolean>;
   onDeliverToRecipient: (payload: any) => Promise<boolean>;
   onRefreshData: () => void;
+  shippingRates?: ShippingRate[];
+  exchangeRates?: DailyExchangeRate[];
+  onSaveShippingRate?: (newRate: ShippingRate, updatedRates: ShippingRate[]) => void;
+  onSaveExchangeRate?: (newRate: DailyExchangeRate, updatedRates: DailyExchangeRate[]) => void;
 }
 
 export const HubPortal: React.FC<HubPortalProps> = ({
@@ -94,6 +98,10 @@ export const HubPortal: React.FC<HubPortalProps> = ({
   onDestinationIntake,
   onDeliverToRecipient,
   onRefreshData,
+  shippingRates: propShippingRates,
+  exchangeRates: propExchangeRates,
+  onSaveShippingRate,
+  onSaveExchangeRate,
 }) => {
   const [currentLocale, setCurrentLocale] = useState<Locale>(locale);
   const [activeSection, setActiveSection] = useState<EmployeeNavSection>('OPERATIONS_DASHBOARD');
@@ -505,11 +513,28 @@ export const HubPortal: React.FC<HubPortalProps> = ({
   };
 
   // Operational State
-  const [shippingRates, setShippingRates] = useState<ShippingRate[]>(INITIAL_SHIPPING_RATES);
+  const [shippingRates, setShippingRates] = useState<ShippingRate[]>(
+    propShippingRates && propShippingRates.length > 0 ? propShippingRates : INITIAL_SHIPPING_RATES
+  );
   const [rateHistory, setRateHistory] = useState<RateHistoryEntry[]>(INITIAL_RATE_HISTORY);
   const [operationalIncidents, setOperationalIncidents] = useState<OperationalIncident[]>(INITIAL_INCIDENTS);
-  const [exchangeRates, setExchangeRates] = useState<DailyExchangeRate[]>(INITIAL_DAILY_EXCHANGE_RATES);
+  const [exchangeRates, setExchangeRates] = useState<DailyExchangeRate[]>(
+    propExchangeRates && propExchangeRates.length > 0 ? propExchangeRates : INITIAL_DAILY_EXCHANGE_RATES
+  );
   const [settlements, setSettlements] = useState<SettlementRecord[]>(INITIAL_SETTLEMENTS);
+
+  // Synchronize internal state if parent props update
+  useEffect(() => {
+    if (propShippingRates && propShippingRates.length > 0) {
+      setShippingRates(propShippingRates);
+    }
+  }, [propShippingRates]);
+
+  useEffect(() => {
+    if (propExchangeRates && propExchangeRates.length > 0) {
+      setExchangeRates(propExchangeRates);
+    }
+  }, [propExchangeRates]);
 
   // Compute operational badge counts for current hub
   const hubShipments = shipments.filter((s) => s.originHubId === currentHub.id || !s.originHubId);
@@ -613,6 +638,7 @@ export const HubPortal: React.FC<HubPortalProps> = ({
     // If the new rate is ACTIVE immediately, retire/expire previous ACTIVE rates in THIS chain ONLY
     // Crucial: The other 3 chains remain untouched!
     setShippingRates((prev) => {
+      let nextRates: ShippingRate[];
       if (initialStatus === 'ACTIVE') {
         const updatedChain = prev.map((r) => {
           if (
@@ -631,9 +657,14 @@ export const HubPortal: React.FC<HubPortalProps> = ({
           }
           return r;
         });
-        return [newRate, ...updatedChain];
+        nextRates = [newRate, ...updatedChain];
+      } else {
+        nextRates = [newRate, ...prev];
       }
-      return [newRate, ...prev];
+      if (onSaveShippingRate) {
+        onSaveShippingRate(newRate, nextRates);
+      }
+      return nextRates;
     });
 
     // Append to rate audit history
@@ -663,8 +694,8 @@ export const HubPortal: React.FC<HubPortalProps> = ({
 
   const handleDisableRate = (rateId: string, reason?: string) => {
     const now = new Date();
-    setShippingRates((prev) =>
-      prev.map((r) =>
+    setShippingRates((prev) => {
+      const nextRates = prev.map((r) =>
         r.id === rateId
           ? {
               ...r,
@@ -673,8 +704,13 @@ export const HubPortal: React.FC<HubPortalProps> = ({
               reason: reason ? `${r.reason ? r.reason + ' | ' : ''}تعطيل: ${reason}` : r.reason,
             }
           : r
-      )
-    );
+      );
+      if (onSaveShippingRate) {
+        const disabled = nextRates.find((r) => r.id === rateId);
+        if (disabled) onSaveShippingRate(disabled, nextRates);
+      }
+      return nextRates;
+    });
 
     const targetRate = shippingRates.find((r) => r.id === rateId);
     if (targetRate) {
@@ -767,6 +803,7 @@ export const HubPortal: React.FC<HubPortalProps> = ({
     };
 
     setExchangeRates((prev) => {
+      let nextRates: DailyExchangeRate[];
       // If new rate is ACTIVE immediately, retire/expire any previous ACTIVE rate for this pair and scope
       if (newRate.status === 'ACTIVE') {
         const updated = prev.map((r) => {
@@ -784,16 +821,21 @@ export const HubPortal: React.FC<HubPortalProps> = ({
           }
           return r;
         });
-        return [newRate, ...updated];
+        nextRates = [newRate, ...updated];
+      } else {
+        nextRates = [newRate, ...prev];
       }
-      return [newRate, ...prev];
+      if (onSaveExchangeRate) {
+        onSaveExchangeRate(newRate, nextRates);
+      }
+      return nextRates;
     });
   };
 
   const handleDisableExchangeRate = (rateId: string, reason?: string) => {
     const now = new Date();
-    setExchangeRates((prev) =>
-      prev.map((r) =>
+    setExchangeRates((prev) => {
+      const nextRates = prev.map((r) =>
         r.id === rateId
           ? {
               ...r,
@@ -802,8 +844,13 @@ export const HubPortal: React.FC<HubPortalProps> = ({
               notes: reason ? `${r.notes ? r.notes + ' | ' : ''}تعطيل: ${reason}` : r.notes,
             }
           : r
-      )
-    );
+      );
+      if (onSaveExchangeRate) {
+        const disabled = nextRates.find((r) => r.id === rateId);
+        if (disabled) onSaveExchangeRate(disabled, nextRates);
+      }
+      return nextRates;
+    });
   };
 
   const handleToggleSidebar = () => {

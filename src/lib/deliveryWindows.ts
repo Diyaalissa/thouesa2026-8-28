@@ -43,7 +43,7 @@ export function getEligiblePublicTrips(trips: Trip[]): Trip[] {
       if (!ALLOWED_STATUSES.includes(normalizedStatus)) return false;
 
       // 2. Future departure time check
-      const depDateStr = trip.departureTime || trip.flightDate;
+      const depDateStr = trip.departureTime || (trip as any).flightDate || (trip as any).departureDate;
       if (!depDateStr) return false;
       const depTime = new Date(depDateStr).getTime();
       if (isNaN(depTime) || depTime <= now) return false;
@@ -56,11 +56,20 @@ export function getEligiblePublicTrips(trips: Trip[]): Trip[] {
       return remaining > 0;
     })
     .sort((a, b) => {
-      const timeA = new Date(a.departureTime || a.flightDate).getTime();
-      const timeB = new Date(b.departureTime || b.flightDate).getTime();
+      const timeA = new Date(a.departureTime || (a as any).flightDate || (a as any).departureDate).getTime();
+      const timeB = new Date(b.departureTime || (b as any).flightDate || (b as any).departureDate).getTime();
       if (timeA !== timeB) return timeA - timeB;
       return a.id.localeCompare(b.id);
     });
+}
+
+function resolveTripCountry(hubId?: string, explicitCountry?: string): string {
+  if (explicitCountry) return normalizeCountryCode(explicitCountry);
+  if (!hubId) return '';
+  const lower = hubId.toLowerCase();
+  if (lower.includes('amm') || lower.includes('jo')) return 'JO';
+  if (lower.includes('alg') || lower.includes('orn') || lower.includes('dz')) return 'DZ';
+  return '';
 }
 
 /**
@@ -82,12 +91,13 @@ export function getCustomerDeliveryWindows(params: {
 
   return eligibleTrips
     .filter((trip) => {
-      const tripOrig = normalizeCountryCode(trip.originCountry);
-      const tripDest = normalizeCountryCode(trip.destinationCountry);
+      const tripOrig = resolveTripCountry(trip.originHubId, (trip as any).originCountry);
+      const tripDest = resolveTripCountry(trip.destinationHubId, (trip as any).destinationCountry);
       return tripOrig === targetOrigin && tripDest === targetDest;
     })
     .map((trip) => {
-      const depDate = new Date(trip.departureTime || trip.flightDate);
+      const depDateStr = trip.departureTime || (trip as any).flightDate || (trip as any).departureDate;
+      const depDate = new Date(depDateStr);
       const arrDate = trip.arrivalTime ? new Date(trip.arrivalTime) : new Date(depDate.getTime() + 24 * 60 * 60 * 1000);
       
       // Cutoff is 3 days prior to departure (or 24h prior if close)

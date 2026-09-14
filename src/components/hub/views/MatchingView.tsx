@@ -934,6 +934,20 @@ export const MatchingView: React.FC<MatchingViewProps> = ({
                   </div>
                 </div>
 
+                {/* Customer Preferred Delivery Window */}
+                {(selectedShipment.preferredDeliveryWindow || selectedShipment.preferredDepartureDate) && (
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/20">
+                    <span className="font-bold flex items-center gap-1.5">
+                      <Plane className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{isAr ? 'نافذة التوصيل المفضلة من العميل:' : 'Customer Preferred Delivery Window:'}</span>
+                    </span>
+                    <span className="font-mono font-bold text-white">
+                      {selectedShipment.preferredDeliveryWindow?.departureDisplay || selectedShipment.preferredDepartureDate}
+                      {selectedShipment.preferredDeliveryWindow?.etaDisplay ? ` (ETA: ${selectedShipment.preferredDeliveryWindow.etaDisplay})` : ''}
+                    </span>
+                  </div>
+                )}
+
                 {/* Readiness Validation */}
                 {(!selectedShipment.securitySealId ||
                   (selectedShipment.actualWeightKg ?? selectedShipment.estimatedWeightKg ?? 0) <= 0 ||

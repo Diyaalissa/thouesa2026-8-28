@@ -206,6 +206,8 @@ export interface Shipment {
   paymentLocalAmount?: number;
   paymentCurrency?: Currency;
   paymentStatus?: 'PENDING_PAYMENT' | 'DEPOSIT_PAID' | 'FULLY_PAID' | 'REFUNDED';
+  preferredDeliveryWindowId?: string;
+  preferredDeliveryWindow?: any;
   preferredDispatchOptionId?: string;
   preferredDepartureDate?: string;
   assignedTripId?: string;

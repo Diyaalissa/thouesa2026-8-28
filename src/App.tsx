@@ -587,6 +587,8 @@ export default function App() {
             shipments={shipments}
             locale={locale}
             hubs={activeHubs}
+            shippingRates={shippingRates}
+            exchangeRates={exchangeRates}
             onRefreshData={fetchData}
             onRegisterTrip={handleRegisterTrip}
             onLockEscrow={handleLockEscrow}
@@ -604,6 +606,14 @@ export default function App() {
             manifests={manifests}
             disputes={disputes}
             locale={locale}
+            shippingRates={shippingRates}
+            exchangeRates={exchangeRates}
+            onSaveShippingRate={(_newRate, updatedRates) => {
+              setShippingRates(updatedRates);
+            }}
+            onSaveExchangeRate={(_newRate, updatedRates) => {
+              setExchangeRates(updatedRates);
+            }}
             onSelectHub={(hubId) => {
               const h = hubs.find((item) => item.id === hubId) || HUBS_DATA.find((item) => item.id === hubId);
               if (h) setCurrentHub(h);

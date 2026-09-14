@@ -220,6 +220,7 @@ export const Option1SendParcel: React.FC<Option1SendParcelProps> = ({
       
       // Stage 05 Specification: Customer selects preferred delivery window (preference only)
       // Strictly NO assignedTravelerId, assignedTripId, or manifestId saved at customer stage.
+      preferredDeliveryWindowId: selectedWindow?.id || undefined,
       preferredDispatchOptionId: selectedWindow?.id || undefined,
       preferredDepartureDate: selectedWindow?.departureDate || undefined,
       preferredDeliveryWindow: selectedWindow ? {

@@ -16,8 +16,8 @@ import {
   HelpCircle,
   Sparkles
 } from 'lucide-react';
-import { Hub, Locale, Trip } from '../../types';
-import { ROUTE_PRICING } from '../../lib/constants';
+import { DailyExchangeRate, Hub, Locale, ShippingRate, Trip } from '../../types';
+import { findShippingRate, calculateFxConversion } from '../../lib/hubFinancialPreview';
 
 interface NewTripModalProps {
   isOpen: boolean;
@@ -27,6 +27,8 @@ interface NewTripModalProps {
   currentUserName: string;
   currentUserPhone?: string;
   locale: Locale;
+  shippingRates?: ShippingRate[];
+  exchangeRates?: DailyExchangeRate[];
   onSuccess?: (newTrip?: Trip) => void;
   onRegisterTrip: (payload: any) => Promise<any>;
 }
@@ -39,6 +41,8 @@ export const NewTripModal: React.FC<NewTripModalProps> = ({
   currentUserName,
   currentUserPhone,
   locale,
+  shippingRates = [],
+  exchangeRates = [],
   onSuccess,
   onRegisterTrip,
 }) => {
@@ -75,14 +79,23 @@ export const NewTripModal: React.FC<NewTripModalProps> = ({
   const originHub = hubs.find(h => h.id === originHubId);
   const destHub = hubs.find(h => h.id === destinationHubId);
 
-  // Dynamic pricing calculation
-  const route = ROUTE_PRICING.find(
-    (r) => r.originCountry === originHub?.countryCode && r.destinationCountry === destHub?.countryCode
-  ) || { travelerShareKg: 12.0 };
+  // Dynamic pricing calculation using authoritative TRAVELER_COMPENSATION rates
+  const originCode = originHub?.countryCode || '';
+  const destCode = destHub?.countryCode || '';
+  const activeRate = findShippingRate(shippingRates, originCode, destCode, 'TRAVELER_COMPENSATION');
 
-  const pricePerKg = route.travelerShareKg || 12.0;
-  const estimatedEarnings = Number((availableWeightKg * pricePerKg).toFixed(2));
+  const pricePerKg = activeRate && activeRate.ratePerKg !== undefined ? activeRate.ratePerKg : null;
+  const rateCurrency = activeRate?.currency || 'USD';
+  const estimatedEarnings = pricePerKg !== null ? Number((availableWeightKg * pricePerKg).toFixed(2)) : null;
   const estimatedEscrow = Number((availableWeightKg * 35.0).toFixed(2));
+
+  // Dynamic FX conversion using system exchangeRates (Traveler direct: BUY, reverse: SELL)
+  const jodFx = estimatedEarnings !== null 
+    ? calculateFxConversion(estimatedEarnings, rateCurrency, 'JOD', 'TRAVELER_PAYOUT', exchangeRates)
+    : null;
+  const dzdFx = estimatedEarnings !== null 
+    ? calculateFxConversion(estimatedEarnings, rateCurrency, 'DZD', 'TRAVELER_PAYOUT', exchangeRates)
+    : null;
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -417,14 +430,24 @@ export const NewTripModal: React.FC<NewTripModalProps> = ({
               {/* Financial Breakdown Preview */}
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-teal-200/60">
                 <div className="bg-white/80 backdrop-blur-xs p-3 rounded-xl border border-teal-200/60">
-                  <span className="text-[10px] text-slate-500 block">{isAr ? 'أرباحك الصافية التقديرية' : 'Estimated Net Earnings'}</span>
-                  <div className="text-lg font-black text-emerald-600 flex items-center gap-1 mt-0.5">
-                    <span>${estimatedEarnings.toFixed(2)}</span>
-                    <span className="text-[10px] text-slate-400 font-normal">(${pricePerKg}/kg)</span>
-                  </div>
-                  <span className="text-[9px] text-emerald-700 font-bold">
-                    {isAr ? `≈ ${(estimatedEarnings * 0.709).toFixed(1)} JOD / ${(estimatedEarnings * 220).toFixed(0)} DZD` : ''}
-                  </span>
+                  <span className="text-[10px] text-slate-500 block">{isAr ? 'أرباحك الصافية التقديرية (تعويض المسافر)' : 'Est. Net Earnings (Traveler Comp)'}</span>
+                  {estimatedEarnings !== null && pricePerKg !== null ? (
+                    <>
+                      <div className="text-lg font-black text-emerald-600 flex items-center gap-1 mt-0.5">
+                        <span>${estimatedEarnings.toFixed(2)}</span>
+                        <span className="text-[10px] text-slate-400 font-normal">(${pricePerKg}/kg)</span>
+                      </div>
+                      <span className="text-[9px] text-emerald-700 font-bold block mt-0.5">
+                        {jodFx && dzdFx 
+                          ? `≈ ${jodFx.convertedAmount.toFixed(1)} JOD / ${dzdFx.convertedAmount.toFixed(0)} DZD`
+                          : isAr ? 'السعر معتمد بالنظام' : 'System approved rate'}
+                      </span>
+                    </>
+                  ) : (
+                    <div className="mt-1 text-xs text-amber-700 font-bold bg-amber-50 p-1.5 rounded-lg border border-amber-200">
+                      {isAr ? '⚠️ تسعيرة المسافر غير مفعلة لهذا المسار' : '⚠️ No active compensation rate for route'}
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-white/80 backdrop-blur-xs p-3 rounded-xl border border-teal-200/60">
