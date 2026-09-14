@@ -552,6 +552,8 @@ export default function App() {
             hubs={activeHubs}
             trips={trips}
             announcements={announcements}
+            shippingRates={shippingRates}
+            exchangeRates={exchangeRates}
             loading={isLoading}
             onNavigate={(role) => handleRoleChange(role)}
             onOpenAuth={(m) => {

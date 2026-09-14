@@ -18,21 +18,33 @@ import {
   Globe2,
   ShoppingBag,
   Search,
-  QrCode,
   FileCheck,
   Megaphone,
   X,
-  Bell,
 } from 'lucide-react';
-import { Currency, Hub, ItemCategory, Locale, PublicAnnouncement, Trip, UserRole } from '../../types';
-import { calculateShippingQuote, formatCurrency } from '../../lib/crypto';
+import {
+  Currency,
+  DailyExchangeRate,
+  Hub,
+  ItemCategory,
+  Locale,
+  PublicAnnouncement,
+  ShippingRate,
+  Trip,
+  UserRole,
+} from '../../types';
+import { calculateCustomerShippingQuote } from '../../lib/deliveryWindows';
+import { getActiveCountries } from '../../lib/countryHelpers';
 import { HUBS_DATA, ROUTE_PRICING } from '../../lib/constants';
+import { normalizeCountryCode } from '../../lib/statusNormalizer';
 
 interface LandingPageProps {
   locale: Locale;
   hubs?: Hub[];
   trips?: Trip[];
   announcements?: PublicAnnouncement[];
+  shippingRates?: ShippingRate[];
+  exchangeRates?: DailyExchangeRate[];
   loading?: boolean;
   onNavigate: (role: UserRole) => void;
   onOpenAuth?: (mode?: 'SIGNIN' | 'SIGNUP' | 'EMPLOYEE') => void;
@@ -43,6 +55,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   hubs,
   trips = [],
   announcements = [],
+  shippingRates = [],
+  exchangeRates = [],
   loading = false,
   onNavigate,
   onOpenAuth,
@@ -50,9 +64,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const isAr = locale === 'ar';
   const ArrowIcon = isAr ? ArrowLeft : ArrowRight;
 
-  const activeHubs = (hubs && hubs.length > 0 ? hubs : HUBS_DATA).filter((h) => h.isActive !== false);
+  const activeHubs = (hubs && hubs.length > 0 ? hubs : HUBS_DATA).filter(
+    (h) => h.isActive !== false
+  );
 
-  // Local UI state for dismissed banner IDs (does not mutate shared announcement records)
+  // Derive dynamic countries from active hubs list
+  const activeCountries = React.useMemo(() => {
+    return getActiveCountries(activeHubs);
+  }, [activeHubs]);
+
+  // Local UI state for dismissed banner IDs
   const [dismissedBannerIds, setDismissedBannerIds] = useState<string[]>([]);
 
   // Publicly eligible announcements filtering
@@ -62,53 +83,38 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
     return announcements
       .filter((ann) => {
-        // 1. Status MUST be explicitly ACTIVE
         if (ann.status !== 'ACTIVE') return false;
-
-        // 2. startAt timestamp must be valid and in the past or now
         const startTime = new Date(ann.startAt).getTime();
         if (isNaN(startTime) || startTime > now) return false;
-
-        // 3. endAt timestamp if specified must be in the future or now
         if (ann.endAt) {
           const endTime = new Date(ann.endAt).getTime();
           if (isNaN(endTime) || endTime < now) return false;
         }
-
         return true;
       })
       .sort((a, b) => {
-        // Sort by priority DESC (higher number = higher priority)
         const priorityDiff = (b.priority || 0) - (a.priority || 0);
         if (priorityDiff !== 0) return priorityDiff;
-
-        // Then by startAt DESC (more recent first)
         const timeDiff = new Date(b.startAt).getTime() - new Date(a.startAt).getTime();
         if (timeDiff !== 0) return timeDiff;
-
-        // Stable secondary tie-breaker by ID
         return a.id.localeCompare(b.id);
       });
   }, [announcements]);
 
-  // Top Banner announcement (maximum 1 highest priority, not dismissed)
   const topBannerAnnouncement = React.useMemo(() => {
     return eligibleAnnouncements.find(
       (ann) => ann.placement === 'TOP_BANNER' && !dismissedBannerIds.includes(ann.id)
     );
   }, [eligibleAnnouncements, dismissedBannerIds]);
 
-  // Home Featured announcements (up to 3 items)
   const homeFeaturedAnnouncements = React.useMemo(() => {
     return eligibleAnnouncements.filter((ann) => ann.placement === 'HOME_FEATURED').slice(0, 3);
   }, [eligibleAnnouncements]);
 
-  // Below Schedule announcements (up to 2 items)
   const belowScheduleAnnouncements = React.useMemo(() => {
     return eligibleAnnouncements.filter((ann) => ann.placement === 'BELOW_SCHEDULE').slice(0, 2);
   }, [eligibleAnnouncements]);
 
-  // Helper to format date & time for public flight schedules
   const formatFlightScheduleDate = (isoString?: string) => {
     if (!isoString) return '';
     try {
@@ -126,7 +132,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     }
   };
 
-  // Helper to resolve Hub location details for origin and destination
   const getHubDisplay = (hubIdOrCode: string) => {
     const hub = activeHubs.find((h) => h.id === hubIdOrCode || h.code === hubIdOrCode);
     if (hub) {
@@ -136,10 +141,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         code: hub.code || hub.countryCode,
       };
     }
-    if (hubIdOrCode?.toLowerCase().includes('amm') || hubIdOrCode?.toLowerCase().includes('jor')) {
+    if (hubIdOrCode?.toLowerCase().includes('amm') || hubIdOrCode?.toLowerCase().includes('jo')) {
       return { city: isAr ? 'عمان' : 'Amman', name: isAr ? 'مركز عمان' : 'Amman Hub', code: 'AMM' };
     }
-    if (hubIdOrCode?.toLowerCase().includes('alg') || hubIdOrCode?.toLowerCase().includes('dza')) {
+    if (hubIdOrCode?.toLowerCase().includes('alg') || hubIdOrCode?.toLowerCase().includes('dz')) {
       return { city: isAr ? 'الجزائر' : 'Algiers', name: isAr ? 'مركز الجزائر' : 'Algiers Hub', code: 'ALG' };
     }
     return { city: hubIdOrCode, name: hubIdOrCode, code: hubIdOrCode };
@@ -153,18 +158,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
     return trips
       .filter((trip) => {
-        // 1. Must be strictly verified/confirmed by Hub Operations
         if (!ALLOWED_STATUSES.includes(trip.status)) return false;
-
-        // 2. Must be upcoming in the future (departure > current time)
         const depTime = new Date(trip.departureTime).getTime();
         if (isNaN(depTime) || depTime <= now) return false;
-
-        // 3. Must have remaining transport capacity
         const available = Number(trip.availableWeightKg) || 0;
         const allocated = Number(trip.allocatedWeightKg) || 0;
         const remaining = Math.max(0, available - allocated);
-
         return remaining > 0;
       })
       .sort((a, b) => {
@@ -174,41 +173,55 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       });
   }, [trips]);
 
-  const uniqueCountries = React.useMemo(() => {
-    const countries = new Map<string, { code: string; nameAr: string; nameEn: string }>();
-    activeHubs.forEach((h) => {
-      if (!countries.has(h.countryCode)) {
-        countries.set(h.countryCode, {
-          code: h.countryCode,
-          nameAr: h.countryNameAr,
-          nameEn: h.countryNameEn,
-        });
-      }
-    });
-    return Array.from(countries.values());
-  }, [activeHubs]);
+  // Quick Estimate State
+  const [originCountryCode, setOriginCountryCode] = useState(activeCountries[0]?.code || 'JO');
+  const [destCountryCode, setDestCountryCode] = useState(
+    activeCountries[1]?.code || activeCountries[0]?.code || 'DZ'
+  );
+  const [estWeightKg, setEstWeightKg] = useState(2.0);
+  const [estCurrency, setEstCurrency] = useState<Currency>('JOD');
 
-  // Calculator State
-  const [originCountry, setOriginCountry] = useState(uniqueCountries[0]?.code || 'JOR');
-  const [destCountry, setDestCountry] = useState(uniqueCountries[1]?.code || uniqueCountries[0]?.code || 'DZA');
-
+  // Maintain valid selected origin & destination when active countries change
   useEffect(() => {
-    if (uniqueCountries.length > 0) {
-      if (!uniqueCountries.some((c) => c.code === originCountry)) {
-        setOriginCountry(uniqueCountries[0].code);
+    if (activeCountries.length > 0) {
+      if (!activeCountries.some((c) => c.code === originCountryCode)) {
+        setOriginCountryCode(activeCountries[0].code);
       }
-      if (!uniqueCountries.some((c) => c.code === destCountry)) {
-        setDestCountry(uniqueCountries[1]?.code || uniqueCountries[0].code);
+      if (!activeCountries.some((c) => c.code === destCountryCode)) {
+        setDestCountryCode(activeCountries[1]?.code || activeCountries[0].code);
       }
     }
-  }, [uniqueCountries, originCountry, destCountry]);
-  const [weightKg, setWeightKg] = useState(2.5);
-  const [lengthCm, setLengthCm] = useState(25);
-  const [widthCm, setWidthCm] = useState(20);
-  const [heightCm, setHeightCm] = useState(10);
-  const [category, setCategory] = useState<ItemCategory>('ELECTRONICS');
-  const [declaredValUsd, setDeclaredValUsd] = useState(450);
-  const [selectedCurrency, setSelectedCurrency] = useState<Currency>('USD');
+  }, [activeCountries, originCountryCode, destCountryCode]);
+
+  // Calculate Quick Estimate using shared CUSTOMER_SHIPPING rates & shared FX
+  const quoteEstimate = React.useMemo(() => {
+    if (originCountryCode === destCountryCode) {
+      return {
+        available: false,
+        error: isAr
+          ? 'يرجى اختيار بلد وصول مختلف عن بلد الإرسال للشحن الدولي'
+          : 'Please select a destination country different from origin',
+      };
+    }
+
+    return calculateCustomerShippingQuote({
+      shippingRates,
+      exchangeRates,
+      originCountry: originCountryCode,
+      destinationCountry: destCountryCode,
+      serviceType: 'SEND_PARCEL',
+      billingWeightKg: Math.max(0.5, estWeightKg),
+      paymentCurrency: estCurrency,
+    });
+  }, [
+    shippingRates,
+    exchangeRates,
+    originCountryCode,
+    destCountryCode,
+    estWeightKg,
+    estCurrency,
+    isAr,
+  ]);
 
   // Live Public Tracking State
   const [trackingCodeInput, setTrackingCodeInput] = useState('');
@@ -241,7 +254,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             securitySealId: 'SEAL-AMM-99120',
             airline: 'الملكية الأردنية',
             flightNumber: 'RJ-511',
-            assignedTravelerName: 'كابتن طارق الهواري',
           });
         } else if (code.includes('TH-EGY-JOR') || code === 'TH-EGY-JOR-202608-1192') {
           setTrackedShipment({
@@ -256,7 +268,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             securitySealId: 'SEAL-CAI-44210',
             airline: 'مصر للطيران',
             flightNumber: 'MS-719',
-            assignedTravelerName: 'مسافر معتمد',
           });
         } else if (code.includes('TH-OMN-DZA') || code === 'TH-OMN-DZA-202608-5541') {
           setTrackedShipment({
@@ -271,7 +282,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             securitySealId: 'SEAL-MCT-77192',
             airline: 'الطيران العماني',
             flightNumber: 'WY-402',
-            assignedTravelerName: 'سالم المعمري',
           });
         } else {
           setTrackedShipment(null);
@@ -284,26 +294,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     }
   };
 
-  const quote = calculateShippingQuote({
-    originCountry,
-    destinationCountry: destCountry,
-    weightKg,
-    lengthCm,
-    widthCm,
-    heightCm,
-    declaredValueUsd: declaredValUsd,
-    category,
-  });
-
-  const categories: { id: ItemCategory; labelAr: string; labelEn: string }[] = [
-    { id: 'ELECTRONICS', labelAr: 'إلكترونيات وهواتف', labelEn: 'Electronics & Gadgets' },
-    { id: 'DOCUMENTS', labelAr: 'وثائق وأوراق رسمية', labelEn: 'Official Documents' },
-    { id: 'CLOTHING_TEXTILES', labelAr: 'ملابس ومقتنيات', labelEn: 'Apparel & Textiles' },
-    { id: 'MEDICATIONS_PERMITTED', labelAr: 'أدوية شخصية مصرحة', labelEn: 'Prescription Medicines' },
-    { id: 'GIFTS_COSMETICS', labelAr: 'هدايا ومستحضرات تجميل', labelEn: 'Gifts & Cosmetics' },
-    { id: 'FOOD_COMMERCIAL_PACKED', labelAr: 'أغذية مغلفة مصنعياً', labelEn: 'Packaged Food Items' },
-  ];
-
   const handleSendNowClick = () => {
     if (onOpenAuth) {
       onOpenAuth('SIGNUP');
@@ -313,73 +303,77 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   };
 
   const handleAnnouncementCta = (target?: string) => {
-    if (!target) {
-      handleSendNowClick();
-      return;
-    }
-    if (target === 'SENDER') {
-      handleSendNowClick();
-    } else if (target === 'TRAVELER') {
-      onNavigate('TRAVELER');
-    } else if (target === 'CALCULATOR') {
-      const calcEl = document.getElementById('shipping-calculator');
-      if (calcEl) {
-        calcEl.scrollIntoView({ behavior: 'smooth' });
-      } else {
-        handleSendNowClick();
+    if (!target) return;
+    if (target.startsWith('#')) {
+      const el = document.getElementById(target.substring(1));
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
       }
-    } else if (target === 'SCHEDULE') {
-      const schedEl = document.getElementById('delivery-schedule');
-      if (schedEl) {
-        schedEl.scrollIntoView({ behavior: 'smooth' });
-      } else {
-        handleSendNowClick();
-      }
-    } else {
-      handleSendNowClick();
+    } else if (target === 'SENDER' || target === 'TRAVELER' || target === 'HUB_AGENT') {
+      onNavigate(target as UserRole);
+    } else if (target.startsWith('AUTH:')) {
+      const mode = target.split(':')[1] as 'SIGNIN' | 'SIGNUP' | 'EMPLOYEE';
+      if (onOpenAuth) onOpenAuth(mode);
     }
   };
 
+  const activeCountriesListText = React.useMemo(() => {
+    if (activeCountries.length === 0) return isAr ? 'الأردن، الجزائر' : 'Jordan, Algeria';
+    return activeCountries.map((c) => (isAr ? c.nameAr : c.nameEn)).join(isAr ? '، ' : ', ');
+  }, [activeCountries, isAr]);
+
   return (
-    <div className="space-y-12 pb-16" dir={isAr ? 'rtl' : 'ltr'}>
-      {/* 0. Top Placement Announcement Banner */}
+    <div className="space-y-12 pb-16">
+      {/* Dynamic Top Announcement Banner (TOP_BANNER) */}
       {topBannerAnnouncement && (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-950 via-slate-900 to-slate-950 border border-brand-500/30 p-4 sm:p-5 shadow-lg text-white">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-brand-500/20 text-brand-400 border border-brand-500/30 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
-                <Megaphone className="w-4 h-4 text-brand-400" />
+        <div
+          id="landing-top-banner"
+          className="relative overflow-hidden bg-gradient-to-r from-brand-900 via-slate-900 to-teal-950 text-white px-4 py-3.5 rounded-2xl border border-brand-500/30 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300"
+        >
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs sm:text-sm">
+            <div className="flex items-center gap-2.5 flex-1 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-brand-500/20 text-brand-300 flex items-center justify-center shrink-0 border border-brand-400/30">
+                <Megaphone className="w-4 h-4" />
               </div>
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-slate-100">
-                    {isAr ? topBannerAnnouncement.titleAr : (topBannerAnnouncement.titleEn || topBannerAnnouncement.titleAr)}
-                  </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
                   {(topBannerAnnouncement.badgeAr || topBannerAnnouncement.badgeEn) && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-500/20 text-brand-300 border border-brand-500/30">
-                      {isAr ? topBannerAnnouncement.badgeAr : (topBannerAnnouncement.badgeEn || topBannerAnnouncement.badgeAr)}
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-brand-400 text-slate-950 uppercase tracking-wider">
+                      {isAr
+                        ? topBannerAnnouncement.badgeAr
+                        : topBannerAnnouncement.badgeEn || topBannerAnnouncement.badgeAr}
                     </span>
                   )}
+                  <span className="font-bold truncate">
+                    {isAr
+                      ? topBannerAnnouncement.titleAr
+                      : topBannerAnnouncement.titleEn || topBannerAnnouncement.titleAr}
+                  </span>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
-                  {isAr ? topBannerAnnouncement.bodyAr : (topBannerAnnouncement.bodyEn || topBannerAnnouncement.bodyAr)}
+                <p className="text-slate-300 text-[11px] sm:text-xs truncate mt-0.5">
+                  {isAr
+                    ? topBannerAnnouncement.bodyAr
+                    : topBannerAnnouncement.bodyEn || topBannerAnnouncement.bodyAr}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               {(topBannerAnnouncement.ctaLabelAr || topBannerAnnouncement.ctaLabelEn) && (
                 <button
                   onClick={() => handleAnnouncementCta(topBannerAnnouncement.ctaTarget)}
-                  className="px-3.5 py-1.5 bg-brand-500 hover:bg-brand-400 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-1.5 bg-brand-500 hover:bg-brand-400 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
                 >
-                  <span>{isAr ? topBannerAnnouncement.ctaLabelAr : (topBannerAnnouncement.ctaLabelEn || topBannerAnnouncement.ctaLabelAr)}</span>
-                  <ArrowIcon className="w-3.5 h-3.5" />
+                  {isAr
+                    ? topBannerAnnouncement.ctaLabelAr
+                    : topBannerAnnouncement.ctaLabelEn || topBannerAnnouncement.ctaLabelAr}
                 </button>
               )}
               {topBannerAnnouncement.isDismissible && (
                 <button
-                  onClick={() => setDismissedBannerIds((prev) => [...prev, topBannerAnnouncement.id])}
+                  onClick={() =>
+                    setDismissedBannerIds((prev) => [...prev, topBannerAnnouncement.id])
+                  }
                   aria-label={isAr ? 'إغلاق الإعلان' : 'Dismiss announcement'}
                   className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
                 >
@@ -393,7 +387,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* 1. Hero Section with Luxury Cover Background */}
       <section className="relative overflow-hidden rounded-3xl bg-slate-950 text-white p-8 md:p-14 border border-slate-800 shadow-2xl">
-        {/* Cover image background with high-end atmospheric blending */}
         <div
           className="absolute inset-0 z-0 bg-cover bg-center opacity-25 mix-blend-luminosity scale-105 pointer-events-none"
           style={{
@@ -407,7 +400,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="relative z-10 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-400/20 border border-brand-400/30 text-brand-300 text-xs font-semibold mb-6 backdrop-blur-xs">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>{isAr ? 'ضمان مالي مشدد 100% ومراكز فحص معتمدة' : '100% Escrow Guarantee & Physical Hub Network'}</span>
+            <span>
+              {isAr
+                ? 'ضمان مالي مشدد 100% ومراكز فحص معتمدة'
+                : '100% Escrow Guarantee & Physical Hub Network'}
+            </span>
           </div>
 
           <h2 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight mb-6">
@@ -418,7 +415,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed mb-8">
             {isAr
-              ? 'منصة ثويسا تجمع بين خدمات إرسال الطرود الشخصية والشراء من المتاجر العالمية والشحن من دول محددة مع فحص أمني دقيق في الفروع وتأمين مالي مسترد (Escrow) من المسافرين.'
+              ? 'منصة ثويسا تجمع بين خدمات إرسال الطرود الشخصية والشراء من المتاجر العالمية والشحن عبر شبكة مراكز فحص معتمدة وتأمين مالي مسترد (Escrow) من المسافرين.'
               : 'THOUESA eliminates blind handovers through a certified Hub-and-Spoke model. Parcels are weighed and tamper-sealed at origin hubs, while travelers lock a refundable financial deposit until delivery.'}
           </p>
 
@@ -428,7 +425,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               className="flex items-center gap-2 px-6 py-3 bg-brand-500 hover:bg-brand-400 text-white font-bold text-sm rounded-xl shadow-lg shadow-brand-500/40 transition-all hover:scale-105 cursor-pointer"
             >
               <PackagePlus className="w-4 h-4" />
-              <span>{isAr ? 'أرسل طردك الآن (تسجيل / دخول)' : 'Send Now (Sign Up / Sign In)'}</span>
+              <span>
+                {isAr ? 'أرسل طردك الآن (تسجيل / دخول)' : 'Send Now (Sign Up / Sign In)'}
+              </span>
               <ArrowIcon className="w-4 h-4" />
             </button>
 
@@ -439,28 +438,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <Plane className="w-4 h-4 text-emerald-400" />
               <span>{isAr ? 'اكسب كمسافر معتمد' : 'Earn as a Traveler'}</span>
             </button>
-
-
           </div>
         </div>
 
-        {/* Live Metrics Strip */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-12 pt-8 border-t border-slate-800/80 text-xs relative z-10">
+        {/* Operational Scope & Hubs Strip */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-12 pt-8 border-t border-slate-800/80 text-xs relative z-10">
           <div>
-            <span className="text-slate-400 block">{isAr ? 'الضمان المالي المحجوز' : 'Active Escrow Locked'}</span>
-            <span className="text-lg font-bold text-emerald-400">$680,000+</span>
+            <span className="text-slate-400 block">{isAr ? 'شبكة الفروع النشطة' : 'Active Operational Hubs'}</span>
+            <span className="text-lg font-bold text-slate-100">
+              {activeHubs.length} {isAr ? 'مراكز معتمدة' : 'Certified Hubs'}
+            </span>
           </div>
           <div>
-            <span className="text-slate-400 block">{isAr ? 'فروع المراكز المعتمدة' : 'Certified Country Hubs'}</span>
-            <span className="text-lg font-bold text-slate-100">{isAr ? 'عمان، الجزائر، مسقط، القاهرة، الرياض' : 'Amman, Algiers, Muscat, Cairo, Riyadh'}</span>
+            <span className="text-slate-400 block">{isAr ? 'الدول المتاحة حالياً' : 'Operational Countries'}</span>
+            <span className="text-lg font-bold text-emerald-400 truncate block" title={activeCountriesListText}>
+              {activeCountriesListText}
+            </span>
           </div>
           <div>
-            <span className="text-slate-400 block">{isAr ? 'المسافرون الموثقون' : 'Verified Travelers'}</span>
-            <span className="text-lg font-bold text-brand-300">1,420+ مسافر</span>
-          </div>
-          <div>
-            <span className="text-slate-400 block">{isAr ? 'نسبة تسليم الطرود الآمنة' : 'Safe Delivery Rate'}</span>
-            <span className="text-lg font-bold text-slate-100">99.96%</span>
+            <span className="text-slate-400 block">{isAr ? 'رحلات ومواعيد التوصيل المعتمدة' : 'Verified Flight Schedules'}</span>
+            <span className="text-lg font-bold text-brand-300">
+              {eligiblePublicTrips.length} {isAr ? 'رحلة قادمة جاهزة' : 'Upcoming verified trips'}
+            </span>
           </div>
         </div>
       </section>
@@ -472,7 +471,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {isAr ? 'خدمات المنصة الشاملة' : 'Core Logistics Services'}
           </span>
           <h3 className="text-2xl sm:text-3xl font-black text-slate-100 mt-2">
-            {isAr ? 'ثلاث خيارات متكاملة للشحن والتسوق الدولي' : 'Three Integrated Services for Global Shipping & Sourcing'}
+            {isAr
+              ? 'ثلاث خيارات متكاملة للشحن والتسوق الدولي'
+              : 'Three Integrated Services for Global Shipping & Sourcing'}
           </h3>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
             {isAr
@@ -553,8 +554,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </h4>
               <p className="text-xs text-slate-400 leading-relaxed">
                 {isAr
-                  ? 'اطلب منتجات مميزة من أسواق الأردن، الجزائر، مصر، سلطنة عُمان، أو السعودية ويقوم كادرنا أو المسافرون بشرائها وتوصيلها.'
-                  : 'Source local goods from Jordan, Algeria, Egypt, Oman, or Saudi Arabia via verified shoppers and travelers.'}
+                  ? 'اطلب منتجات مميزة من أي دولة بها فرع نشط لـ THOUESA ويقوم كادرنا أو المسافرون بشرائها وتوصيلها لبلدك.'
+                  : 'Source local goods from any country with an active THOUESA hub via verified shoppers and travelers.'}
               </p>
             </div>
             <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs font-bold text-emerald-400 group-hover:text-emerald-300">
@@ -565,7 +566,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </section>
 
-      {/* Featured Announcements & Platform Notices (HOME_FEATURED) */}
+      {/* Featured Announcements (HOME_FEATURED) */}
       {homeFeaturedAnnouncements.length > 0 && (
         <section className="space-y-4">
           <div className="flex items-center justify-between">
@@ -577,7 +578,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
           </div>
 
-          <div className={`grid grid-cols-1 ${homeFeaturedAnnouncements.length > 1 ? 'md:grid-cols-2 lg:grid-cols-3' : ''} gap-5`}>
+          <div
+            className={`grid grid-cols-1 ${
+              homeFeaturedAnnouncements.length > 1 ? 'md:grid-cols-2 lg:grid-cols-3' : ''
+            } gap-5`}
+          >
             {homeFeaturedAnnouncements.map((ann) => (
               <div
                 key={ann.id}
@@ -585,9 +590,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    {(ann.badgeAr || ann.badgeEn) ? (
+                    {ann.badgeAr || ann.badgeEn ? (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand-50 text-brand-700 border border-brand-200">
-                        {isAr ? ann.badgeAr : (ann.badgeEn || ann.badgeAr)}
+                        {isAr ? ann.badgeAr : ann.badgeEn || ann.badgeAr}
                       </span>
                     ) : (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
@@ -595,14 +600,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       </span>
                     )}
                     <span className="text-[10px] text-slate-400">
-                      {new Date(ann.startAt).toLocaleDateString(isAr ? 'ar-JO' : 'en-US', { month: 'short', day: 'numeric' })}
+                      {new Date(ann.startAt).toLocaleDateString(isAr ? 'ar-JO' : 'en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
                     </span>
                   </div>
                   <h4 className="font-bold text-slate-900 text-sm mb-2 leading-snug">
-                    {isAr ? ann.titleAr : (ann.titleEn || ann.titleAr)}
+                    {isAr ? ann.titleAr : ann.titleEn || ann.titleAr}
                   </h4>
                   <p className="text-xs text-slate-600 leading-relaxed">
-                    {isAr ? ann.bodyAr : (ann.bodyEn || ann.bodyAr)}
+                    {isAr ? ann.bodyAr : ann.bodyEn || ann.bodyAr}
                   </p>
                 </div>
 
@@ -612,7 +620,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       onClick={() => handleAnnouncementCta(ann.ctaTarget)}
                       className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1 cursor-pointer"
                     >
-                      <span>{isAr ? ann.ctaLabelAr : (ann.ctaLabelEn || ann.ctaLabelAr)}</span>
+                      <span>{isAr ? ann.ctaLabelAr : ann.ctaLabelEn || ann.ctaLabelAr}</span>
                       <ArrowIcon className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -623,72 +631,44 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </section>
       )}
 
-      {/* 2. Interactive Live Instant Shipping Calculator */}
-      <section id="shipping-calculator" className="bg-white rounded-3xl p-6 md:p-10 border border-slate-200 shadow-sm">
+      {/* 2. Quick Shipping Rate Estimate (Dynamic Hubs & CUSTOMER_SHIPPING Rates) */}
+      <section
+        id="shipping-estimate"
+        className="bg-white rounded-3xl p-6 md:p-10 border border-slate-200 shadow-sm"
+      >
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center">
             <Calculator className="w-5 h-5" />
           </div>
           <div>
             <h3 className="text-xl font-bold text-slate-900">
-              {isAr ? 'حاسبة الشحن الفورية وتسعير الأمان والضمان' : 'Instant Shipping Cost & Escrow Calculator'}
+              {isAr ? 'تقدير تسعيرة الشحن الفورية' : 'Instant Shipping Quote Estimate'}
             </h3>
             <p className="text-xs text-slate-500">
               {isAr
-                ? 'حساب التكلفة الدقيقة بناءً على الوزن الحجمي وقيمة التأمين المستردة'
-                : 'Accurate pricing calculated via volumetric dimensions & cargo escrow'}
+                ? 'تقدير فوري مستند إلى تعرفة الشحن الرسمية المعتمدة والفروع النشطة في المنصة'
+                : 'Instant quote estimate based on active certified hubs and official shipping rates'}
             </p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Inputs */}
+          {/* Quick Controls */}
           <div className="lg:col-span-2 space-y-5 text-xs text-slate-700">
-            {/* Route Selection */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+            {/* Dynamic Origin & Destination Selectors */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block font-semibold mb-1.5">{isAr ? 'بلد الانطلاق (فرع الشحن)' : 'Origin Hub'}</label>
+                <label className="block font-semibold mb-1.5">
+                  {isAr ? 'بلد الإرسال (الفرع المصدر)' : 'Origin Country (Hub)'}
+                </label>
                 <select
-                  value={originCountry}
-                  onChange={(e) => setOriginCountry(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                  value={originCountryCode}
+                  onChange={(e) => setOriginCountryCode(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:border-brand-400"
                 >
-                  {uniqueCountries.map((c) => (
+                  {activeCountries.map((c) => (
                     <option key={c.code} value={c.code}>
-                      {isAr ? c.nameAr : c.nameEn}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1.5">{isAr ? 'بلد الوصول (فرع الاستلام)' : 'Destination Hub'}</label>
-                <select
-                  value={destCountry}
-                  onChange={(e) => setDestCountry(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
-                >
-                  {uniqueCountries.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {isAr ? c.nameAr : c.nameEn}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Category & Declared Value */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-              <div>
-                <label className="block font-semibold mb-1.5">{isAr ? 'نوع المحتويات' : 'Item Category'}</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as ItemCategory)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium"
-                >
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {isAr ? c.labelAr : c.labelEn}
+                      {isAr ? c.nameAr : c.nameEn} ({c.code}) - {c.activeHubsCount} {isAr ? 'فرع' : 'Hub(s)'}
                     </option>
                   ))}
                 </select>
@@ -696,63 +676,57 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
               <div>
                 <label className="block font-semibold mb-1.5">
-                  {isAr ? 'القيمة المصرح بها للطرد ($)' : 'Declared Parcel Value ($)'}
+                  {isAr ? 'بلد الوصول (الفرع الوجهة)' : 'Destination Country (Hub)'}
                 </label>
-                <input
-                  type="number"
-                  min="10"
-                  max="5000"
-                  value={declaredValUsd}
-                  onChange={(e) => setDeclaredValUsd(Number(e.target.value))}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold"
-                />
+                <select
+                  value={destCountryCode}
+                  onChange={(e) => setDestCountryCode(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:border-brand-400"
+                >
+                  {activeCountries.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {isAr ? c.nameAr : c.nameEn} ({c.code}) - {c.activeHubsCount} {isAr ? 'فرع' : 'Hub(s)'}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            {/* Weight Slider & Dimensions */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="font-semibold">{isAr ? 'الوزن التقريبي (كغم)' : 'Estimated Weight (kg)'}</label>
-                <span className="font-bold text-brand-500 bg-brand-50 px-2 py-0.5 rounded-md">{weightKg} كغم</span>
+            {/* Weight Slider & Currency Picker */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="font-semibold">
+                    {isAr ? 'الوزن التقديري (كغم)' : 'Estimated Weight (kg)'}
+                  </label>
+                  <span className="font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-md">
+                    {estWeightKg} {isAr ? 'كغم' : 'kg'}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="20"
+                  step="0.5"
+                  value={estWeightKg}
+                  onChange={(e) => setEstWeightKg(Number(e.target.value))}
+                  className="w-full accent-brand-500 cursor-pointer"
+                />
               </div>
-              <input
-                type="range"
-                min="0.5"
-                max="25"
-                step="0.5"
-                value={weightKg}
-                onChange={(e) => setWeightKg(Number(e.target.value))}
-                className="w-full accent-brand-500"
-              />
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               <div>
-                <label className="block font-semibold text-slate-500 mb-1">{isAr ? 'الطول (سم)' : 'Length (cm)'}</label>
-                <input
-                  type="number"
-                  value={lengthCm}
-                  onChange={(e) => setLengthCm(Number(e.target.value))}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-center font-medium"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-500 mb-1">{isAr ? 'العرض (سم)' : 'Width (cm)'}</label>
-                <input
-                  type="number"
-                  value={widthCm}
-                  onChange={(e) => setWidthCm(Number(e.target.value))}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-center font-medium"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-500 mb-1">{isAr ? 'الارتفاع (سم)' : 'Height (cm)'}</label>
-                <input
-                  type="number"
-                  value={heightCm}
-                  onChange={(e) => setHeightCm(Number(e.target.value))}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-center font-medium"
-                />
+                <label className="block font-semibold mb-1.5">
+                  {isAr ? 'عملة العرض التقديري' : 'Display Currency'}
+                </label>
+                <select
+                  value={estCurrency}
+                  onChange={(e) => setEstCurrency(e.target.value as Currency)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:border-brand-400"
+                >
+                  <option value="JOD">JOD - دينار أردني</option>
+                  <option value="DZD">DZD - دينار جزائري</option>
+                  <option value="USD">USD - دولار أمريكي</option>
+                </select>
               </div>
             </div>
           </div>
@@ -761,38 +735,52 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="bg-slate-900 text-white rounded-2xl p-6 flex flex-col justify-between border border-slate-800">
             <div>
               <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs text-slate-400">
-                <span>{isAr ? 'التسعير التقديري' : 'Price Quotation'}</span>
+                <span>{isAr ? 'التسعير المعتمد' : 'Official Quote'}</span>
                 <span className="font-semibold text-brand-300">
-                  {isAr ? 'الوزن المعتمد:' : 'Chargeable:'} {quote.chargeableWeightKg} kg
+                  {normalizeCountryCode(originCountryCode)} ➔ {normalizeCountryCode(destCountryCode)}
                 </span>
               </div>
 
-              <div className="my-5">
-                <span className="text-xs text-slate-400 block">{isAr ? 'التكلفة الإجمالية للشحن' : 'Total Shipping Fee'}</span>
-                <div className="text-3xl font-black text-white mt-1">
-                  {formatCurrency(quote.totalCostUsd, 'USD')}
+              {quoteEstimate.available ? (
+                <div className="my-5">
+                  <span className="text-xs text-slate-400 block">
+                    {isAr ? 'التكلفة التقديرية للشحن' : 'Estimated Shipping Fee'}
+                  </span>
+                  <div className="text-3xl font-black text-white mt-1">
+                    {quoteEstimate.paymentAmount?.toFixed(2)} {quoteEstimate.paymentCurrency}
+                  </div>
+                  {quoteEstimate.baseCurrency && quoteEstimate.baseCurrency !== quoteEstimate.paymentCurrency && (
+                    <span className="text-[11px] text-slate-400 block mt-1">
+                      {isAr ? 'القيمة بالعملة الأساسية:' : 'Base Currency:'} {quoteEstimate.totalBaseAmount?.toFixed(2)} {quoteEstimate.baseCurrency}
+                    </span>
+                  )}
                 </div>
-              </div>
+              ) : (
+                <div className="my-5 p-3.5 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl text-xs">
+                  <p className="font-bold">{quoteEstimate.error || (isAr ? 'التعرفة غير متوفرة لهذا المسار' : 'Rate unavailable for this route')}</p>
+                  <p className="text-slate-400 text-[11px] mt-1">
+                    {isAr
+                      ? 'يمكنك التواصل مع خدمة العملاء لطلب مسار خاص'
+                      : 'You can contact support to request a custom route'}
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2 text-xs text-slate-300 border-t border-slate-800 pt-4">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">{isAr ? 'عائد المسافر المعتمد:' : 'Traveler Share:'}</span>
-                  <span className="font-semibold text-emerald-400">{formatCurrency(quote.travelerShareUsd, 'USD')}</span>
+                  <span className="text-slate-400">{isAr ? 'نوع الخدمة:' : 'Service Type:'}</span>
+                  <span className="font-semibold text-slate-200">{isAr ? 'شحن طرود موثقة' : 'Verified Parcel Transit'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">{isAr ? 'رسوم الفحص والختم الأمني:' : 'Inspection & Tamper Seal:'}</span>
-                  <span className="font-semibold text-slate-200">{formatCurrency(quote.insuranceUsd, 'USD')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">{isAr ? 'الضمان المطلوب من المسافر:' : 'Required Escrow Hold:'}</span>
-                  <span className="font-semibold text-amber-400">{formatCurrency(quote.escrowDepositRequiredUsd, 'USD')}</span>
+                  <span className="text-slate-400">{isAr ? 'الضمان والأمان:' : 'Security & Escrow:'}</span>
+                  <span className="font-semibold text-emerald-400">{isAr ? 'تأمين 100% مسترد' : '100% Locked Escrow'}</span>
                 </div>
               </div>
             </div>
 
             <button
-              onClick={() => onNavigate('SENDER')}
-              className="mt-6 w-full py-3 bg-brand-500 hover:bg-brand-400 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2"
+              onClick={handleSendNowClick}
+              className="mt-6 w-full py-3 bg-brand-500 hover:bg-brand-400 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-brand-500/30"
             >
               <span>{isAr ? 'متابعة وحجز الشحنة' : 'Book Shipment with Escrow'}</span>
               <ArrowIcon className="w-3.5 h-3.5" />
@@ -810,29 +798,37 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <div>
               <h3 className="text-lg font-black text-white">
-                {isAr ? 'تتبع الشحنة والتحقق من الختم الأمني المباشر' : 'Live Shipment Tracking & Tamper Seal Verification'}
+                {isAr
+                  ? 'تتبع الشحنة والتحقق من الختم الأمني المباشر'
+                  : 'Live Shipment Tracking & Tamper Seal Verification'}
               </h3>
               <p className="text-xs text-slate-400">
-                {isAr ? 'أدخل رقم التتبع لمشاهدة حالة الشحنة، وزن المركز المعاير، والختم المشفر لحظياً' : 'Instant tracking by tracking code or tamper seal serial number'}
+                {isAr
+                  ? 'أدخل رقم التتبع لمشاهدة حالة الشحنة ومراحل النقل لحظياً دون كشف بيانات المسافر الخاصة'
+                  : 'Instant tracking by tracking code or tamper seal serial number'}
               </p>
             </div>
           </div>
 
           {/* Quick Demo Code Tags */}
           <div className="flex items-center gap-2 text-xs flex-wrap">
-            <span className="text-slate-500 font-semibold">{isAr ? 'رموز تجريبية سريعة:' : 'Quick Demo codes:'}</span>
-            {['TH-JOR-ALG-202608-8841', 'TH-EGY-JOR-202608-1192', 'TH-OMN-DZA-202608-5541'].map((c) => (
-              <button
-                key={c}
-                onClick={() => {
-                  setTrackingCodeInput(c);
-                  handleTrackShipment(c);
-                }}
-                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-brand-300 rounded-lg font-mono text-[11px] border border-slate-700 transition-colors cursor-pointer"
-              >
-                {c}
-              </button>
-            ))}
+            <span className="text-slate-500 font-semibold">
+              {isAr ? 'رموز تجريبية سريعة:' : 'Quick Demo codes:'}
+            </span>
+            {['TH-JOR-ALG-202608-8841', 'TH-EGY-JOR-202608-1192', 'TH-OMN-DZA-202608-5541'].map(
+              (c) => (
+                <button
+                  key={c}
+                  onClick={() => {
+                    setTrackingCodeInput(c);
+                    handleTrackShipment(c);
+                  }}
+                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-brand-300 rounded-lg font-mono text-[11px] border border-slate-700 transition-colors cursor-pointer"
+                >
+                  {c}
+                </button>
+              )
+            )}
           </div>
         </div>
 
@@ -846,7 +842,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleTrackShipment();
               }}
-              placeholder={isAr ? 'مثال: TH-JOR-ALG-202608-8841 أو SEAL-AMM-...' : 'e.g. TH-JOR-ALG-202608-8841'}
+              placeholder={
+                isAr
+                  ? 'مثال: TH-JOR-ALG-202608-8841 أو SEAL-AMM-...'
+                  : 'e.g. TH-JOR-ALG-202608-8841'
+              }
               className="w-full pl-4 pr-10 py-3 bg-slate-800/90 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 text-xs font-mono focus:outline-none focus:border-brand-400"
             />
             <Search className="w-4 h-4 text-slate-400 absolute top-3.5 right-3.5" />
@@ -873,8 +873,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="mt-6 p-5 bg-slate-800/70 border border-slate-700 rounded-2xl space-y-4 animate-in fade-in duration-200">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/80 pb-3">
               <div>
-                <span className="text-[11px] text-slate-400">{isAr ? 'رقم التتبع الدولي:' : 'Tracking Number:'}</span>
-                <div className="text-base font-black text-brand-300 font-mono">{trackedShipment.trackingNumber}</div>
+                <span className="text-[11px] text-slate-400">
+                  {isAr ? 'رقم التتبع الدولي:' : 'Tracking Number:'}
+                </span>
+                <div className="text-base font-black text-brand-300 font-mono">
+                  {trackedShipment.trackingNumber}
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -893,20 +897,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
               <div>
-                <span className="text-slate-400 block">{isAr ? 'المحتويات المصرحة:' : 'Item Contents:'}</span>
-                <span className="font-bold text-slate-200">{trackedShipment.title || trackedShipment.itemTitle}</span>
+                <span className="text-slate-400 block">
+                  {isAr ? 'المحتويات المصرحة:' : 'Item Contents:'}
+                </span>
+                <span className="font-bold text-slate-200">
+                  {trackedShipment.title || trackedShipment.itemTitle}
+                </span>
               </div>
               <div>
-                <span className="text-slate-400 block">{isAr ? 'الوزن الفعلي المفحوص:' : 'Verified Weight:'}</span>
-                <span className="font-bold text-slate-200">{trackedShipment.actualWeightKg || trackedShipment.estimatedWeightKg} kg</span>
+                <span className="text-slate-400 block">
+                  {isAr ? 'الوزن الفعلي المفحوص:' : 'Verified Weight:'}
+                </span>
+                <span className="font-bold text-slate-200">
+                  {trackedShipment.actualWeightKg || trackedShipment.estimatedWeightKg} kg
+                </span>
               </div>
               <div>
                 <span className="text-slate-400 block">{isAr ? 'فرع الإرسال:' : 'Origin Hub:'}</span>
-                <span className="font-bold text-slate-200">{trackedShipment.originHubCode || 'AMM-01'}</span>
+                <span className="font-bold text-slate-200">
+                  {trackedShipment.originHubCode || 'AMM-01'}
+                </span>
               </div>
               <div>
-                <span className="text-slate-400 block">{isAr ? 'فرع الاستلام:' : 'Destination Hub:'}</span>
-                <span className="font-bold text-slate-200">{trackedShipment.destinationHubCode || 'ALG-01'}</span>
+                <span className="text-slate-400 block">
+                  {isAr ? 'فرع الاستلام:' : 'Destination Hub:'}
+                </span>
+                <span className="font-bold text-slate-200">
+                  {trackedShipment.destinationHubCode || 'ALG-01'}
+                </span>
               </div>
             </div>
 
@@ -915,11 +933,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <div className="flex items-center gap-2">
                   <Plane className="w-4 h-4 text-emerald-400" />
                   <span>
-                    {isAr ? 'الرحلة المعينة:' : 'Assigned Flight:'} <b className="text-white font-mono">{trackedShipment.airline} ({trackedShipment.flightNumber})</b>
+                    {isAr ? 'الرحلة المعينة:' : 'Assigned Flight:'}{' '}
+                    <b className="text-white font-mono">
+                      {trackedShipment.airline} ({trackedShipment.flightNumber})
+                    </b>
                   </span>
                 </div>
                 <span className="text-slate-400 text-[11px]">
-                  {isAr ? 'المسافر المعتمد:' : 'Traveler:'} <b className="text-slate-200">{trackedShipment.assignedTravelerName || 'كابتن موثق'}</b>
+                  {isAr ? 'مرحلة النقل:' : 'Transit Stage:'}{' '}
+                  <b className="text-slate-200">{isAr ? 'مسافر معتمد وموثق' : 'Verified Traveler Transit'}</b>
                 </span>
               </div>
             )}
@@ -930,9 +952,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="mt-6 p-4 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-2xl text-xs flex items-center gap-3">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
             <div>
-              <p className="font-bold">{isAr ? 'لم يتم العثور على شحنة بهذا الرمز' : 'No shipment found with this tracking number'}</p>
+              <p className="font-bold">
+                {isAr ? 'لم يتم العثور على شحنة بهذا الرمز' : 'No shipment found with this tracking number'}
+              </p>
               <p className="text-slate-400 text-[11px] mt-0.5">
-                {isAr ? 'يرجى التأكد من كتابة الرمز بشكل صحيح أو اختيار أحد الأكواد التجريبية أعلاه' : 'Please check your tracking number or click one of the demo codes above'}
+                {isAr
+                  ? 'يرجى التأكد من كتابة الرمز بشكل صحيح أو اختيار أحد الأكواد التجريبية أعلاه'
+                  : 'Please check your tracking number or click one of the demo codes above'}
               </p>
             </div>
           </div>
@@ -1045,7 +1071,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <div className="p-6 text-center bg-slate-50 border border-slate-200 rounded-2xl">
                 <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                 <p className="font-bold text-slate-700 text-xs">
-                  {isAr ? 'لا توجد مواعيد توصيل قادمة متاحة حالياً' : 'No upcoming delivery schedules available at the moment'}
+                  {isAr
+                    ? 'لا توجد مواعيد توصيل قادمة متاحة حالياً'
+                    : 'No upcoming delivery schedules available at the moment'}
                 </p>
                 <p className="text-[11px] text-slate-500 mt-1">
                   {isAr
@@ -1070,18 +1098,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     >
                       <div className="space-y-1">
                         <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                          <span>{originInfo.city} ({originInfo.code})</span>
+                          <span>
+                            {originInfo.city} ({originInfo.code})
+                          </span>
                           <span className="text-slate-400">➔</span>
-                          <span>{destInfo.city} ({destInfo.code})</span>
+                          <span>
+                            {destInfo.city} ({destInfo.code})
+                          </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                          <span className="font-medium text-slate-700">{trip.airline} ({trip.flightNumber})</span>
+                          <span className="font-medium text-slate-700">
+                            {trip.airline} ({trip.flightNumber})
+                          </span>
                           <span>•</span>
-                          <span>{isAr ? 'الإقلاع:' : 'Dep:'} {formatFlightScheduleDate(trip.departureTime)}</span>
+                          <span>
+                            {isAr ? 'الإقلاع:' : 'Dep:'} {formatFlightScheduleDate(trip.departureTime)}
+                          </span>
                           {trip.arrivalTime && (
                             <>
                               <span>•</span>
-                              <span>{isAr ? 'الوصول المتوقع:' : 'Arrival:'} {formatFlightScheduleDate(trip.arrivalTime)}</span>
+                              <span>
+                                {isAr ? 'الوصول المتوقع:' : 'Arrival:'}{' '}
+                                {formatFlightScheduleDate(trip.arrivalTime)}
+                              </span>
                             </>
                           )}
                         </div>
@@ -1114,15 +1153,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                       <div>
                         <div className="font-bold text-slate-900 flex items-center gap-2">
-                          <span>{isAr ? ann.titleAr : (ann.titleEn || ann.titleAr)}</span>
+                          <span>{isAr ? ann.titleAr : ann.titleEn || ann.titleAr}</span>
                           {(ann.badgeAr || ann.badgeEn) && (
                             <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md font-semibold">
-                              {isAr ? ann.badgeAr : (ann.badgeEn || ann.badgeAr)}
+                              {isAr ? ann.badgeAr : ann.badgeEn || ann.badgeAr}
                             </span>
                           )}
                         </div>
                         <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">
-                          {isAr ? ann.bodyAr : (ann.bodyEn || ann.bodyAr)}
+                          {isAr ? ann.bodyAr : ann.bodyEn || ann.bodyAr}
                         </p>
                       </div>
                     </div>
@@ -1131,7 +1170,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         onClick={() => handleAnnouncementCta(ann.ctaTarget)}
                         className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-xl shrink-0 cursor-pointer self-end sm:self-center"
                       >
-                        {isAr ? ann.ctaLabelAr : (ann.ctaLabelEn || ann.ctaLabelAr)}
+                        {isAr ? ann.ctaLabelAr : ann.ctaLabelEn || ann.ctaLabelAr}
                       </button>
                     )}
                   </div>
@@ -1156,7 +1195,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </div>
 
-        {/* Hub Network Cards */}
+        {/* Dynamic Certified Hub Network Section */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -1165,6 +1204,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 {isAr ? 'شبكة مراكز الفحص والتخزين المعتمدة (Hubs)' : 'Certified Country Hub Network'}
               </h4>
             </div>
+            <span className="text-xs text-slate-500">
+              {activeHubs.length} {isAr ? 'مراكز نشطة' : 'Active Hubs'}
+            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
@@ -1174,7 +1216,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <span className="font-bold text-slate-900">{h.code}</span>
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 </div>
-                <p className="font-medium text-slate-700 text-[11px] truncate">{isAr ? h.nameAr : h.nameEn}</p>
+                <p className="font-medium text-slate-700 text-[11px] truncate">
+                  {isAr ? h.nameAr : h.nameEn}
+                </p>
                 <p className="text-slate-500 text-[10px] mt-1">{h.operatingHours}</p>
               </div>
             ))}
