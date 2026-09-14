@@ -1,0 +1,1380 @@
+import {
+  AuditLog,
+  CustomsDutyRule,
+  Dispute,
+  Employee,
+  EscrowWallet,
+  FinancialTransaction,
+  Hub,
+  Manifest,
+  Shipment,
+  SystemNotification,
+  Trip,
+  User,
+} from '../src/types';
+import { DEFAULT_CUSTOMS_RULES, DEMO_PROFILES, HUBS_DATA, INITIAL_EMPLOYEES } from '../src/lib/constants';
+
+class DataStore {
+  public users: Map<string, User> = new Map();
+  public employees: Map<string, Employee> = new Map();
+  public hubs: Map<string, Hub> = new Map();
+  public trips: Map<string, Trip> = new Map();
+  public shipments: Map<string, Shipment> = new Map();
+  public manifests: Map<string, Manifest> = new Map();
+  public wallets: Map<string, EscrowWallet> = new Map();
+  public transactions: Map<string, FinancialTransaction> = new Map();
+  public disputes: Map<string, Dispute> = new Map();
+  public auditLogs: AuditLog[] = [];
+  public notifications: SystemNotification[] = [];
+  public customsRules: Map<string, CustomsDutyRule> = new Map();
+  public exchangeRates: Record<string, number> = {
+    USD: 1.0,
+    JOD: 0.709,
+    DZA: 134.5,
+    DZD: 134.5,
+    EGP: 48.85,
+    SAR: 3.75,
+    OMR: 0.385,
+    AED: 3.67,
+  };
+  public exchangeRateDetails: Map<
+    string,
+    {
+      code: string;
+      nameAr: string;
+      nameEn: string;
+      symbol: string;
+      rateToUsd: number;
+      lastUpdated: string;
+      updatedBy: string;
+      isManualOverride: boolean;
+    }
+  > = new Map();
+
+  constructor() {
+    this.seedInitialData();
+  }
+
+  private seedInitialData() {
+    // 0. Seed Exchange Rates Metadata
+    const initialCurrencies = [
+      { code: 'USD', nameAr: 'دولار أمريكي', nameEn: 'US Dollar', symbol: '$', rateToUsd: 1.0 },
+      { code: 'JOD', nameAr: 'دينار أردني', nameEn: 'Jordanian Dinar', symbol: 'JD', rateToUsd: 0.709 },
+      { code: 'DZD', nameAr: 'دينار جزائري', nameEn: 'Algerian Dinar', symbol: 'DA', rateToUsd: 134.5 },
+      { code: 'EGP', nameAr: 'جنيه مصري', nameEn: 'Egyptian Pound', symbol: 'E£', rateToUsd: 48.85 },
+      { code: 'SAR', nameAr: 'ريال سعودي', nameEn: 'Saudi Riyal', symbol: 'SR', rateToUsd: 3.75 },
+      { code: 'OMR', nameAr: 'ريال عُماني', nameEn: 'Omani Rial', symbol: 'OMR', rateToUsd: 0.385 },
+      { code: 'AED', nameAr: 'درهم إماراتي', nameEn: 'UAE Dirham', symbol: 'AED', rateToUsd: 3.67 },
+    ];
+    initialCurrencies.forEach((c) => {
+      this.exchangeRateDetails.set(c.code, {
+        ...c,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: 'System Baseline',
+        isManualOverride: false,
+      });
+      this.exchangeRates[c.code] = c.rateToUsd;
+    });
+
+    // 0.1 Seed Customs Duty Rules per country
+    DEFAULT_CUSTOMS_RULES.forEach((rule) => {
+      this.customsRules.set(rule.countryCode, { ...rule });
+    });
+
+    // 1. Seed Hubs
+    HUBS_DATA.forEach((hub) => {
+      this.hubs.set(hub.id, { ...hub });
+    });
+
+    // 1.1 Seed Employees
+    INITIAL_EMPLOYEES.forEach((emp) => {
+      this.employees.set(emp.id, { ...emp });
+      // Also register as a system user for unified auth
+      this.users.set(emp.id, {
+        id: emp.id,
+        fullName: emp.fullName,
+        email: emp.email,
+        phone: emp.phone,
+        role: emp.role,
+        kycStatus: 'VERIFIED',
+        isActive: emp.isActive,
+        preferredLocale: 'ar',
+        assignedHubId: emp.assignedHubId,
+        staffCode: emp.staffCode,
+        createdAt: emp.createdAt,
+      });
+    });
+
+    // 2. Seed Users
+    Object.values(DEMO_PROFILES).forEach((user) => {
+      this.users.set(user.id, { ...user });
+      this.wallets.set(user.id, {
+        id: `wlt-${user.id}`,
+        userId: user.id,
+        balance: user.role === 'TRAVELER' ? 1450.0 : user.role === 'SENDER' ? 850.0 : 0.0,
+        lockedEscrowDeposit: user.role === 'TRAVELER' ? 650.0 : 0.0,
+        pendingEarnings: user.role === 'TRAVELER' ? 320.0 : 0.0,
+        currency: 'USD',
+        updatedAt: new Date().toISOString(),
+      });
+    });
+
+    // Extra users for realistic lists
+    const extraTraveler: User = {
+      id: 'usr-traveler-203',
+      fullName: 'سمير خلوفي (Samir Kheloufi)',
+      email: 'samir.k@thouesa.com',
+      phone: '+213 66 112 3344',
+      role: 'TRAVELER',
+      kycStatus: 'VERIFIED',
+      isActive: true,
+      preferredLocale: 'ar',
+      passportNumber: 'DZ991044',
+      rating: 4.88,
+      totalTrips: 12,
+      createdAt: '2025-10-01T09:00:00Z',
+    };
+    this.users.set(extraTraveler.id, extraTraveler);
+    this.wallets.set(extraTraveler.id, {
+      id: `wlt-${extraTraveler.id}`,
+      userId: extraTraveler.id,
+      balance: 890.0,
+      lockedEscrowDeposit: 200.0,
+      pendingEarnings: 150.0,
+      currency: 'USD',
+      updatedAt: new Date().toISOString(),
+    });
+
+    // 3. Seed Trips
+    const trip1: Trip = {
+      id: 'trip-amm-alg-801',
+      travelerId: 'usr-traveler-202',
+      travelerName: 'كريم بوجمعة (Karim Boujemaa)',
+      travelerPhone: '+213 55 987 6543',
+      travelerRating: 4.96,
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      airline: 'Royal Jordanian (RJ-511)',
+      flightNumber: 'RJ511',
+      pnrCode: 'RJ892B',
+      departureTime: new Date(Date.now() + 18 * 3600000).toISOString(),
+      arrivalTime: new Date(Date.now() + 24 * 3600000).toISOString(),
+      availableWeightKg: 18.0,
+      allocatedWeightKg: 9.5,
+      pricePerKgEarned: 12.0,
+      totalEarningsEstimated: 114.0,
+      requiredEscrowDeposit: 650.0,
+      isEscrowPaid: true,
+      status: 'ESCROW_PAID',
+      ticketDocUrl: '/docs/tickets/pnr-RJ892B.pdf',
+      createdAt: new Date(Date.now() - 48 * 3600000).toISOString(),
+    };
+
+    const trip2: Trip = {
+      id: 'trip-cai-amm-802',
+      travelerId: 'usr-traveler-203',
+      travelerName: 'سمير خلوفي (Samir Kheloufi)',
+      travelerPhone: '+213 66 112 3344',
+      travelerRating: 4.88,
+      originHubId: 'hub-cai',
+      destinationHubId: 'hub-amm',
+      airline: 'EgyptAir (MS-719)',
+      flightNumber: 'MS719',
+      pnrCode: 'MS441Q',
+      departureTime: new Date(Date.now() + 42 * 3600000).toISOString(),
+      arrivalTime: new Date(Date.now() + 44 * 3600000).toISOString(),
+      availableWeightKg: 15.0,
+      allocatedWeightKg: 4.0,
+      pricePerKgEarned: 8.0,
+      totalEarningsEstimated: 32.0,
+      requiredEscrowDeposit: 200.0,
+      isEscrowPaid: true,
+      status: 'VERIFIED',
+      ticketDocUrl: '/docs/tickets/pnr-MS441Q.pdf',
+      createdAt: new Date(Date.now() - 24 * 3600000).toISOString(),
+    };
+
+    this.trips.set(trip1.id, trip1);
+    this.trips.set(trip2.id, trip2);
+
+    const trip3: Trip = {
+      id: 'trip-20260906-0182',
+      travelerId: 'usr-traveler-204',
+      travelerName: 'أحمد بن علي (Ahmed Benali)',
+      travelerPhone: '+962 79 555 1234',
+      travelerRating: 4.98,
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      airline: 'Royal Jordanian (RJ-517)',
+      flightNumber: 'RJ517',
+      pnrCode: 'RJ771X',
+      departureTime: new Date(Date.now() + 48 * 3600000).toISOString(),
+      arrivalTime: new Date(Date.now() + 54 * 3600000).toISOString(),
+      availableWeightKg: 12.0,
+      allocatedWeightKg: 0.0,
+      pricePerKgEarned: 12.0,
+      totalEarningsEstimated: 144.0,
+      requiredEscrowDeposit: 420.0,
+      isEscrowPaid: false,
+      status: 'SUBMITTED',
+      kycStatus: 'VERIFIED',
+      ticketDocUrl: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800&auto=format&fit=crop&q=80',
+      createdAt: new Date(Date.now() - 4 * 3600000).toISOString(),
+    };
+
+    const trip4: Trip = {
+      id: 'trip-20260906-0183',
+      travelerId: 'usr-traveler-205',
+      travelerName: 'فاطمة الزهراء (Fatima Al-Zahra)',
+      travelerPhone: '+962 78 888 4433',
+      travelerRating: 4.91,
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-mct',
+      airline: 'Oman Air (WY-412)',
+      flightNumber: 'WY412',
+      pnrCode: 'WY994K',
+      departureTime: new Date(Date.now() + 72 * 3600000).toISOString(),
+      arrivalTime: new Date(Date.now() + 76 * 3600000).toISOString(),
+      availableWeightKg: 20.0,
+      allocatedWeightKg: 0.0,
+      pricePerKgEarned: 11.0,
+      totalEarningsEstimated: 220.0,
+      requiredEscrowDeposit: 700.0,
+      isEscrowPaid: false,
+      status: 'SUBMITTED',
+      kycStatus: 'VERIFIED',
+      ticketDocUrl: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800&auto=format&fit=crop&q=80',
+      createdAt: new Date(Date.now() - 8 * 3600000).toISOString(),
+    };
+
+    const trip5: Trip = {
+      id: 'trip-20260906-0184',
+      travelerId: 'usr-traveler-206',
+      travelerName: 'خالد العمري (Khaled Al-Omari)',
+      travelerPhone: '+962 77 222 9911',
+      travelerRating: 4.75,
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-cai',
+      airline: 'EgyptAir (MS-721)',
+      flightNumber: 'MS721',
+      pnrCode: 'MS112P',
+      departureTime: new Date(Date.now() + 36 * 3600000).toISOString(),
+      arrivalTime: new Date(Date.now() + 38 * 3600000).toISOString(),
+      availableWeightKg: 15.0,
+      allocatedWeightKg: 0.0,
+      pricePerKgEarned: 9.0,
+      totalEarningsEstimated: 135.0,
+      requiredEscrowDeposit: 525.0,
+      isEscrowPaid: false,
+      status: 'NEEDS_UPDATE',
+      updateRequestNotes: 'يرجى إعادة رفع صورة واضحة للتذكرة يظهر فيها رقم التذكرة الإلكترونية (e-Ticket number).',
+      kycStatus: 'VERIFIED',
+      createdAt: new Date(Date.now() - 12 * 3600000).toISOString(),
+    };
+
+    const trip6: Trip = {
+      id: 'trip-20260906-0185',
+      travelerId: 'usr-traveler-207',
+      travelerName: 'منير قدور (Mounir Kaddour)',
+      travelerPhone: '+213 55 111 8899',
+      travelerRating: 4.2,
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      airline: 'Air Algerie (AH-4011)',
+      flightNumber: 'AH4011',
+      pnrCode: 'AH332L',
+      departureTime: new Date(Date.now() + 24 * 3600000).toISOString(),
+      arrivalTime: new Date(Date.now() + 28 * 3600000).toISOString(),
+      availableWeightKg: 10.0,
+      allocatedWeightKg: 0.0,
+      pricePerKgEarned: 12.0,
+      totalEarningsEstimated: 120.0,
+      requiredEscrowDeposit: 350.0,
+      isEscrowPaid: false,
+      status: 'REJECTED',
+      rejectionReason: 'تاريخ التذكرة غير متطابق مع إفادة الرحلة والاسم في التذكرة يختلف عن هوية المسافر المعتمدة.',
+      kycStatus: 'PENDING',
+      createdAt: new Date(Date.now() - 18 * 3600000).toISOString(),
+    };
+
+    this.trips.set(trip3.id, trip3);
+    this.trips.set(trip4.id, trip4);
+    this.trips.set(trip5.id, trip5);
+    this.trips.set(trip6.id, trip6);
+
+    // 4. Seed Shipments & Service Orders
+    const ship1: Shipment = {
+      id: 'ship-101',
+      trackingNumber: 'TH-JOR-ALG-202608-8841',
+      serviceType: 'SEND_PARCEL',
+      senderId: 'usr-sender-101',
+      senderName: 'طارق الهاشمي',
+      senderPhone: '+962 79 123 4567',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'أمين بلحاج (Amine Belhadj)',
+      recipientPhone: '+213 77 441 9922',
+      recipientAddress: 'حي حيدرة، نهج الإخوة بوعدو، الجزائر العاصمة',
+      recipientNationalId: 'DZ-09812441',
+      itemCategory: 'ELECTRONICS',
+      itemDescription: 'جهاز iPad Pro 11-inch مع كيبورد أصلي مغلف ومفحوص أمنياً',
+      orderItems: [
+        {
+          id: 'item-101-1',
+          name: 'iPad Pro 11" 256GB M4 Wi-Fi (Space Black)',
+          quantity: 1,
+          unitPrice: 550.0,
+          totalCost: 550.0,
+          notes: 'مغلف بغلاف المصنع الأصلي',
+        },
+        {
+          id: 'item-101-2',
+          name: 'Magic Keyboard for iPad Pro 11"',
+          quantity: 1,
+          unitPrice: 100.0,
+          totalCost: 100.0,
+          notes: 'ملحقات إضافية',
+        }
+      ],
+      itemPhotos: [
+        'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400&auto=format&fit=crop&q=80',
+      ],
+      declaredValue: 650.0,
+      currency: 'USD',
+      estimatedWeightKg: 2.2,
+      actualWeightKg: 2.3,
+      dimensionsCm: { length: 28, width: 22, height: 6 },
+      securitySealId: 'SEAL-AMM-98231',
+      shippingCost: 52.5,
+      insuranceFee: 4.5,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 650.0,
+      currentStatus: 'ASSIGNED_TO_TRIP',
+      senderLegalWaiverSigned: true,
+      senderLegalWaiverTimestamp: new Date(Date.now() - 36 * 3600000).toISOString(),
+      paymentMethod: 'WALLET',
+      assignedTripId: trip1.id,
+      assignedTravelerId: trip1.travelerId,
+      assignedTravelerName: trip1.travelerName,
+      flightNumber: 'RJ511',
+      airline: 'Royal Jordanian',
+      inspectionPhotos: [
+        'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&auto=format&fit=crop&q=80'
+      ],
+      inspectionNotes: 'تم فحص الشاشة والبطارية، مطابقة للمواصفات وخالية من أي بطاريات منتفخة أو سوائل. تم تثبيت قفل الأمان الإلكتروني SEAL-AMM-98231.',
+      inspectedByAgentId: 'usr-agent-303',
+      inspectedAt: new Date(Date.now() - 12 * 3600000).toISOString(),
+      idempotencyKey: 'idemp-ship-101-seed',
+      createdAt: new Date(Date.now() - 36 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 12 * 3600000).toISOString(),
+    };
+
+    const ship2: Shipment = {
+      id: 'ship-102',
+      trackingNumber: 'TH-AMZ-USA-ALG-9022',
+      serviceType: 'INTERNATIONAL_BUY',
+      senderId: 'usr-sender-101',
+      senderName: 'طارق الهاشمي',
+      senderPhone: '+962 79 123 4567',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'طارق الهاشمي',
+      recipientPhone: '+962 79 123 4567',
+      recipientAddress: 'عمان، شارع المدينة المنورة، مجمع الروابي',
+      itemCategory: 'ELECTRONICS',
+      itemDescription: 'طلب شراء من Amazon US: بنك طاقة وسماعات عازلة للضوضاء',
+      orderItems: [
+        {
+          id: 'item-102-1',
+          name: 'Anker Prime Power Bank 27,650mAh (250W)',
+          url: 'https://amazon.com/dp/B0BYP2F3SG',
+          quantity: 2,
+          unitPrice: 120.0,
+          totalCost: 240.0,
+          notes: 'Amazon US Official Store',
+        },
+        {
+          id: 'item-102-2',
+          name: 'Sony WH-1000XM5 Wireless Headphones',
+          url: 'https://amazon.com/dp/B09XS7JWHH',
+          quantity: 1,
+          unitPrice: 280.0,
+          totalCost: 280.0,
+          notes: 'لون أسود مع علبة السفر',
+        }
+      ],
+      itemPhotos: [
+        'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&auto=format&fit=crop&q=80',
+      ],
+      inspectionPhotos: [
+        'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80',
+      ],
+      declaredValue: 520.0,
+      currency: 'USD',
+      estimatedWeightKg: 1.8,
+      actualWeightKg: 1.85,
+      dimensionsCm: { length: 30, width: 22, height: 12 },
+      securitySealId: 'SEAL-AMM-98232',
+      shippingCost: 38.0,
+      insuranceFee: 3.0,
+      customsDutyEstimated: 15.0,
+      escrowDepositRequired: 520.0,
+      currentStatus: 'INSPECTED_SEALED',
+      senderLegalWaiverSigned: true,
+      senderLegalWaiverTimestamp: new Date(Date.now() - 20 * 3600000).toISOString(),
+      inspectionNotes: 'تم استلام المنتجات من المتجر العالمي وتدقيق الفواتير وأرقام السيريال وتغليفها أمنياً مع قفل SEAL-AMM-98232.',
+      inspectedByAgentId: 'usr-agent-303',
+      inspectedAt: new Date(Date.now() - 6 * 3600000).toISOString(),
+      idempotencyKey: 'idemp-ship-102-seed',
+      createdAt: new Date(Date.now() - 20 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 6 * 3600000).toISOString(),
+    };
+
+    const ship3: Shipment = {
+      id: 'ship-103',
+      trackingNumber: 'TH-BUY-JOR-ALG-4411',
+      serviceType: 'SPECIFIC_COUNTRY_BUY',
+      senderId: 'usr-sender-101',
+      senderName: 'طارق الهاشمي',
+      senderPhone: '+962 79 123 4567',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'د. ليلى عماري (Dr. Leila Ammari)',
+      recipientPhone: '+213 55 220 8811',
+      recipientAddress: 'جامعة الجزائر 1، كلية الصيدلة، بن عكنون',
+      itemCategory: 'GIFTS_COSMETICS',
+      itemDescription: 'شراء منتجات أردنية حصرية: أملاح وطين البحر الميت مع زعفران محلي فاخر',
+      orderItems: [
+        {
+          id: 'item-103-1',
+          name: 'مجموعة مستحضرات البحر الميت الملكية (طين + أملاح + سيروم)',
+          countryOrigin: 'JOR',
+          quantity: 3,
+          unitPrice: 45.0,
+          totalCost: 135.0,
+          notes: 'ماركة ريفاج الأصلية من عمان',
+        },
+        {
+          id: 'item-103-2',
+          name: 'شال حريري مطرز تطريز يدوي فلسطيني/أردني أصيل',
+          countryOrigin: 'JOR',
+          quantity: 2,
+          unitPrice: 65.0,
+          totalCost: 130.0,
+          notes: 'شغل يدوي تراثي فاخر',
+        }
+      ],
+      itemPhotos: [
+        'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&auto=format&fit=crop&q=80',
+      ],
+      declaredValue: 265.0,
+      currency: 'USD',
+      estimatedWeightKg: 2.5,
+      dimensionsCm: { length: 35, width: 25, height: 15 },
+      shippingCost: 35.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 265.0,
+      currentStatus: 'PENDING',
+      senderLegalWaiverSigned: true,
+      senderLegalWaiverTimestamp: new Date(Date.now() - 8 * 3600000).toISOString(),
+      idempotencyKey: 'idemp-ship-103-seed',
+      createdAt: new Date(Date.now() - 8 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 8 * 3600000).toISOString(),
+    };
+
+    // 4.1 Seed Overweight Shipment for instant testing of weight adjustment approval banner
+    const ship4: Shipment = {
+      id: 'ship-104',
+      trackingNumber: 'TH-JOR-ALG-202608-9952',
+      serviceType: 'SEND_PARCEL',
+      senderId: 'usr-sender-101',
+      senderName: 'طارق الهاشمي',
+      senderPhone: '+962 79 123 4567',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'بلال قدور (Bilel Kaddour)',
+      recipientPhone: '+213 66 332 1199',
+      recipientAddress: 'وهران، حي العقيد لطفي، إقامة النور',
+      itemCategory: 'OTHER_SAFE_GOODS',
+      itemDescription: 'قطع غيار طابعات ثلاثية الأبعاد وكتب هندسية ثقيلة',
+      itemPhotos: [
+        'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=400&auto=format&fit=crop&q=80',
+      ],
+      inspectionPhotos: [
+        'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80',
+      ],
+      declaredValue: 350.0,
+      currency: 'USD',
+      estimatedWeightKg: 1.5,
+      actualWeightKg: 2.8,
+      dimensionsCm: { length: 30, width: 25, height: 18 },
+      securitySealId: 'SEAL-AMM-99104',
+      shippingCost: 28.0,
+      insuranceFee: 2.5,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 350.0,
+      currentStatus: 'WEIGHT_ADJUSTMENT_PENDING',
+      senderLegalWaiverSigned: true,
+      senderLegalWaiverTimestamp: new Date(Date.now() - 14 * 3600000).toISOString(),
+      inspectionNotes: 'تم وزن الطرد على الميزان المعاير، الوزن الفعلي 2.8 كغ مقابل 1.5 كغ مقدر (+1.3 كغ فارق وزن). بانتظار موافقة العميل على فارق السعر.',
+      inspectedByAgentId: 'usr-agent-303',
+      inspectedAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+      weightDiscrepancy: {
+        originalKg: 1.5,
+        actualKg: 2.8,
+        priceDelta: 23.4, // +$23.40
+        status: 'PENDING_CUSTOMER_APPROVAL',
+      },
+      idempotencyKey: 'idemp-ship-104-seed',
+      createdAt: new Date(Date.now() - 14 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+    };
+
+    // 4.2 Seed Shipment at Customs Clearance with verified customs receipt
+    const ship5: Shipment = {
+      id: 'ship-105',
+      trackingNumber: 'TH-BUY-USA-ALG-7731',
+      serviceType: 'INTERNATIONAL_BUY',
+      senderId: 'usr-sender-101',
+      senderName: 'طارق الهاشمي',
+      senderPhone: '+962 79 123 4567',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'كريم بلعباس (Karim Belabbes)',
+      recipientPhone: '+213 55 889 0011',
+      recipientAddress: 'الجزائر العاصمة، القبة، شارع القدس',
+      itemCategory: 'ELECTRONICS',
+      itemDescription: 'كاميرا احترافية Sony Alpha A7 IV وعدسة سينمائية 24-70mm',
+      orderItems: [
+        {
+          id: 'item-105-1',
+          name: 'Sony Alpha 7 IV Full-frame Mirrorless Camera',
+          quantity: 1,
+          unitPrice: 850.0,
+          totalCost: 850.0,
+          notes: 'Amazon Prime Order',
+        }
+      ],
+      itemPhotos: [
+        'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&auto=format&fit=crop&q=80',
+      ],
+      declaredValue: 850.0,
+      currency: 'USD',
+      estimatedWeightKg: 2.4,
+      actualWeightKg: 2.45,
+      dimensionsCm: { length: 32, width: 24, height: 16 },
+      securitySealId: 'SEAL-ALG-55019',
+      shippingCost: 45.0,
+      customsDutyEstimated: 35.0,
+      escrowDepositRequired: 850.0,
+      currentStatus: 'CUSTOMS_CLEARANCE',
+      senderLegalWaiverSigned: true,
+      senderLegalWaiverTimestamp: new Date(Date.now() - 40 * 3600000).toISOString(),
+      customsDutyRecord: {
+        id: 'cus-rec-7731',
+        shipmentId: 'ship-105',
+        dutyAmountPaid: 35.0,
+        dutyCurrency: 'USD',
+        receiptPhotoUrl: 'https://images.unsplash.com/photo-1621844781423-f327702e861c?auto=format&fit=crop&q=80&w=600',
+        receiptNumber: 'DZ-DGD-2026-99042',
+        recordedAt: new Date(Date.now() - 4 * 3600000).toISOString(),
+        customsLocationAr: 'مفتشية الجمارك - مطار هواري بومدين الدولي',
+        customsLocationEn: 'Customs Inspectorate - Houari Boumediene Airport',
+        notes: 'تم سداد الرسوم الجمركية الرسمية واستلام إشعار الإفراج الجمركي.',
+        verificationStatus: 'VERIFIED_REIMBURSED',
+      },
+      idempotencyKey: 'idemp-ship-105-seed',
+      createdAt: new Date(Date.now() - 40 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 4 * 3600000).toISOString(),
+    };
+
+    // 4.3 Seed Completed & Delivered Shipment
+    const ship6: Shipment = {
+      id: 'ship-106',
+      trackingNumber: 'TH-JOR-ALG-202607-1102',
+      serviceType: 'SEND_PARCEL',
+      senderId: 'usr-sender-101',
+      senderName: 'طارق الهاشمي',
+      senderPhone: '+962 79 123 4567',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'ياسين بن مهيدي (Yassine Ben M\'hidi)',
+      recipientPhone: '+213 77 112 3344',
+      recipientAddress: 'الجزائر العاصمة، ديدوش مراد',
+      itemCategory: 'DOCUMENTS',
+      itemDescription: 'شهادات دراسات عليا ووثائق رسمية مصدقة ومغلفة',
+      itemPhotos: [
+        'https://images.unsplash.com/photo-1568667256549-094345857637?w=400&auto=format&fit=crop&q=80',
+      ],
+      declaredValue: 120.0,
+      currency: 'USD',
+      estimatedWeightKg: 0.5,
+      actualWeightKg: 0.5,
+      dimensionsCm: { length: 30, width: 22, height: 2 },
+      securitySealId: 'SEAL-AMM-11020',
+      shippingCost: 20.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 120.0,
+      currentStatus: 'DELIVERED',
+      deliveredAt: new Date(Date.now() - 72 * 3600000).toISOString(),
+      senderLegalWaiverSigned: true,
+      senderLegalWaiverTimestamp: new Date(Date.now() - 96 * 3600000).toISOString(),
+      idempotencyKey: 'idemp-ship-106-seed',
+      createdAt: new Date(Date.now() - 96 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 72 * 3600000).toISOString(),
+    };
+
+    // 4.4 Seed Cancelled Shipment
+    const ship7: Shipment = {
+      id: 'ship-107',
+      trackingNumber: 'TH-JOR-ALG-202607-0094',
+      serviceType: 'SPECIFIC_COUNTRY_BUY',
+      senderId: 'usr-sender-101',
+      senderName: 'طارق الهاشمي',
+      senderPhone: '+962 79 123 4567',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'منى القادري',
+      recipientPhone: '+213 55 990 1122',
+      recipientAddress: 'عنابة، الكورنيش',
+      itemCategory: 'GIFTS_COSMETICS',
+      itemDescription: 'عطور شرقية تم إلغاء طلبها لعدم توفر المنتج بالمحل',
+      itemPhotos: [
+        'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&auto=format&fit=crop&q=80',
+      ],
+      declaredValue: 90.0,
+      currency: 'USD',
+      estimatedWeightKg: 1.0,
+      dimensionsCm: { length: 20, width: 15, height: 10 },
+      shippingCost: 18.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 90.0,
+      currentStatus: 'CANCELLED',
+      senderLegalWaiverSigned: true,
+      idempotencyKey: 'idemp-ship-107-seed',
+      createdAt: new Date(Date.now() - 120 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 110 * 3600000).toISOString(),
+    };
+
+    // 4.5 Dedicated Shipment Intake Test Parcels
+    const shipIntake1: Shipment = {
+      id: 'ship-intake-1',
+      trackingNumber: 'TH-260903-0182',
+      serviceType: 'SEND_PARCEL',
+      senderId: 'usr-sender-101',
+      senderName: 'طارق الهاشمي (Tariq Al-Hashemi)',
+      senderPhone: '+962 79 123 4567',
+      senderEmail: 'tariq.hashemi@gmail.com',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'أمين بلحاج (Amine Belhadj)',
+      recipientPhone: '+213 77 441 9922',
+      recipientAddress: 'حي حيدرة، نهج الإخوة بوعدو، الجزائر العاصمة',
+      itemCategory: 'ELECTRONICS',
+      itemDescription: 'أجهزة حاسوب محمولة وملحقات فحص ميكروسكوبية مغلفة',
+      itemPhotos: ['https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400&auto=format&fit=crop&q=80'],
+      declaredValue: 350.0,
+      currency: 'USD',
+      estimatedWeightKg: 2.2,
+      dimensionsCm: { length: 28, width: 22, height: 10 },
+      shippingCost: 45.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 350.0,
+      currentStatus: 'PENDING_DROPOFF',
+      paymentMethod: 'WALLET',
+      paymentStatus: 'FULLY_PAID',
+      preferredDepartureDate: 'اليوم 10:30',
+      senderKycStatus: 'VERIFIED',
+      packageType: 'كرتون مقوى (Reinforced Box)',
+      expectedPieces: 1,
+      securityDeclarations: {
+        containsLiquids: false,
+        containsBatteries: false,
+        containsMedication: false,
+        containsFragile: true,
+      },
+      customerNotes: 'يرجى الحرص التام على عدم الضغط على الكرتون، يحتوي على شاشة زجاجية دقيقة.',
+      idempotencyKey: 'idemp-intake-1',
+      createdAt: new Date(Date.now() - 5 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 5 * 3600000).toISOString(),
+    };
+
+    const shipIntake2: Shipment = {
+      id: 'ship-intake-2',
+      trackingNumber: 'TH-260903-0491',
+      serviceType: 'SEND_PARCEL',
+      senderId: 'usr-sender-102',
+      senderName: 'سارة عبد الله (Sara Abdullah)',
+      senderPhone: '+962 78 555 1234',
+      senderEmail: 'sara.abd@outlook.com',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'فاطمة الزهراء بوعلام',
+      recipientPhone: '+213 55 123 8899',
+      recipientAddress: 'وهران، حي السلام، إقامة الياسمين',
+      itemCategory: 'CLOTHING_TEXTILES',
+      itemDescription: 'ملابس أطفال قطنية ووثائق أكاديمية أصلية مصدقة',
+      itemPhotos: ['https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&auto=format&fit=crop&q=80'],
+      declaredValue: 120.0,
+      currency: 'USD',
+      estimatedWeightKg: 1.4,
+      dimensionsCm: { length: 25, width: 20, height: 8 },
+      shippingCost: 25.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 120.0,
+      currentStatus: 'PENDING_DROPOFF',
+      paymentMethod: 'CLIQ',
+      paymentStatus: 'PENDING_PAYMENT',
+      preferredDepartureDate: 'اليوم 14:00',
+      senderKycStatus: 'VERIFIED',
+      packageType: 'غلاف مغلق (Security Pouch)',
+      expectedPieces: 1,
+      securityDeclarations: {
+        containsLiquids: false,
+        containsBatteries: false,
+        containsMedication: false,
+        containsFragile: false,
+      },
+      customerNotes: 'سأقوم بسداد الرسوم في الكاونتر أثناء تسليم الطرد.',
+      idempotencyKey: 'idemp-intake-2',
+      createdAt: new Date(Date.now() - 3 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 3 * 3600000).toISOString(),
+    };
+
+    const shipIntake3: Shipment = {
+      id: 'ship-intake-3',
+      trackingNumber: 'TH-260903-0873',
+      serviceType: 'SPECIFIC_COUNTRY_BUY',
+      senderId: 'usr-sender-103',
+      senderName: 'محمد الكردي (Mohammad Kurdi)',
+      senderPhone: '+962 79 987 6543',
+      senderEmail: 'm.kurdi@gmail.com',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'رياض محرز بن عمار',
+      recipientPhone: '+213 66 777 4433',
+      recipientAddress: 'قسنطينة، وسط المدينة',
+      itemCategory: 'GIFTS_COSMETICS',
+      itemDescription: 'مستحضرات عناية طبيعية وبن أردني محمص فاخر',
+      itemPhotos: ['https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&auto=format&fit=crop&q=80'],
+      declaredValue: 210.0,
+      currency: 'USD',
+      estimatedWeightKg: 3.0,
+      dimensionsCm: { length: 35, width: 25, height: 15 },
+      shippingCost: 40.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 210.0,
+      currentStatus: 'PENDING_DROPOFF',
+      paymentMethod: 'WALLET',
+      paymentStatus: 'FULLY_PAID',
+      preferredDepartureDate: 'غداً 11:00',
+      senderKycStatus: 'VERIFIED',
+      packageType: 'صندوق خشبي خفيف (Wooden Box)',
+      expectedPieces: 2,
+      securityDeclarations: {
+        containsLiquids: false,
+        containsBatteries: false,
+        containsMedication: false,
+        containsFragile: false,
+      },
+      idempotencyKey: 'idemp-intake-3',
+      createdAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+    };
+
+    const shipIntake4: Shipment = {
+      id: 'ship-intake-4',
+      trackingNumber: 'TH-260903-1105',
+      serviceType: 'SEND_PARCEL',
+      senderId: 'usr-sender-104',
+      senderName: 'خالد الزعبي (Khaled Zoubi)',
+      senderPhone: '+962 77 333 4444',
+      senderEmail: 'khaled.zoubi@gmail.com',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'عمر شريف بن زكريا',
+      recipientPhone: '+213 77 222 5566',
+      recipientAddress: 'الجزائر العاصمة، باب الوادي',
+      itemCategory: 'OTHER_SAFE_GOODS',
+      itemDescription: 'مجموعة مراجع ومخططات هندسية أكاديمية',
+      itemPhotos: ['https://images.unsplash.com/photo-1568667256549-094345857637?w=400&auto=format&fit=crop&q=80'],
+      declaredValue: 180.0,
+      currency: 'USD',
+      estimatedWeightKg: 1.8,
+      dimensionsCm: { length: 30, width: 22, height: 5 },
+      shippingCost: 28.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 180.0,
+      currentStatus: 'RECEIVED_AT_ORIGIN',
+      paymentMethod: 'WALLET',
+      paymentStatus: 'FULLY_PAID',
+      receivedAtOriginHubAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+      receivedByEmployeeId: 'usr-agent-303',
+      receivedAtHubId: 'hub-amm',
+      packageType: 'حقيبة كرتونية مقواة',
+      expectedPieces: 1,
+      idempotencyKey: 'idemp-intake-4',
+      createdAt: new Date(Date.now() - 6 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+    };
+
+    const shipIntakeWrongHub: Shipment = {
+      id: 'ship-intake-wrong',
+      trackingNumber: 'TH-ALG-AMM-202609-0099',
+      serviceType: 'SEND_PARCEL',
+      senderId: 'usr-sender-105',
+      senderName: 'سمير قادري (Samir Kadri)',
+      senderPhone: '+213 77 888 9900',
+      originHubId: 'hub-alg', // Different Origin Hub to test guardrail
+      destinationHubId: 'hub-amm',
+      recipientName: 'يزيد التميمي',
+      recipientPhone: '+962 79 000 1122',
+      recipientAddress: 'عمان، الشميساني',
+      itemCategory: 'OTHER_SAFE_GOODS',
+      itemDescription: 'طرد خاص بفرع الجزائر العاصمة - محطة هواري بومدين',
+      itemPhotos: ['https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=400&auto=format&fit=crop&q=80'],
+      declaredValue: 150.0,
+      currency: 'USD',
+      estimatedWeightKg: 2.0,
+      dimensionsCm: { length: 25, width: 20, height: 10 },
+      shippingCost: 30.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 150.0,
+      currentStatus: 'PENDING_DROPOFF',
+      paymentMethod: 'WALLET',
+      paymentStatus: 'FULLY_PAID',
+      senderKycStatus: 'VERIFIED',
+      packageType: 'صندوق قياسي',
+      expectedPieces: 1,
+      idempotencyKey: 'idemp-intake-wrong',
+      createdAt: new Date(Date.now() - 10 * 3600000).toISOString(),
+      updatedAt: new Date(Date.now() - 10 * 3600000).toISOString(),
+    };
+
+    this.shipments.set(ship1.id, ship1);
+    this.shipments.set(ship2.id, ship2);
+    this.shipments.set(ship3.id, ship3);
+    this.shipments.set(ship4.id, ship4);
+    this.shipments.set(ship5.id, ship5);
+    this.shipments.set(ship6.id, ship6);
+    this.shipments.set(ship7.id, ship7);
+    this.shipments.set(shipIntake1.id, shipIntake1);
+    this.shipments.set(shipIntake2.id, shipIntake2);
+    this.shipments.set(shipIntake3.id, shipIntake3);
+    this.shipments.set(shipIntake4.id, shipIntake4);
+    this.shipments.set(shipIntakeWrongHub.id, shipIntakeWrongHub);
+
+    // 5. Seed Manifest
+    const manifest1: Manifest = {
+      id: 'man-8801',
+      manifestCode: 'MAN-AMM-ALG-0824',
+      tripId: trip1.id,
+      travelerId: trip1.travelerId,
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      dispatchedByAgentId: 'usr-agent-303',
+      shipmentIds: [ship1.id],
+      totalPackages: 1,
+      totalWeightKg: 2.3,
+      totalDeclaredValue: 650.0,
+      handoverQrSecret: 'HMAC_SECRET_KEY_AMM_ALG_8801',
+      status: 'PREPARING',
+      tamperSealIds: [ship1.securitySealId!],
+      createdAt: new Date(Date.now() - 4 * 3600000).toISOString(),
+    };
+    this.manifests.set(manifest1.id, manifest1);
+
+    // 5.1 Seed Destination Intake Test Flight (Stage 04)
+    const tripRJ517: Trip = {
+      id: 'trip-rj517',
+      travelerId: 'usr-traveler-201',
+      travelerName: 'Ahmed Benali',
+      travelerPhone: '+213 55 998 1122',
+      travelerRating: 4.9,
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      airline: 'Royal Jordanian',
+      flightNumber: 'RJ517',
+      pnrCode: 'RJ9914',
+      departureTime: '2026-09-12T06:00:00Z',
+      arrivalTime: '2026-09-12T09:45:00Z',
+      availableWeightKg: 20.0,
+      allocatedWeightKg: 14.2,
+      pricePerKgEarned: 12.0,
+      totalEarningsEstimated: 170.4,
+      requiredEscrowDeposit: 400.0,
+      isEscrowPaid: true,
+      status: 'DISPATCHED',
+      kycStatus: 'VERIFIED',
+      createdAt: '2026-09-10T10:00:00Z',
+    };
+    this.trips.set(tripRJ517.id, tripRJ517);
+
+    const intakeShip1: Shipment = {
+      id: 'ship-intake-01',
+      trackingNumber: 'TH-260912-0182',
+      serviceType: 'SEND_PARCEL',
+      senderId: 'usr-sender-101',
+      senderName: 'د. طارق الهاشمي',
+      senderPhone: '+962 79 123 4567',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'د. أمين بلحاج',
+      recipientPhone: '+213 77 441 9922',
+      recipientAddress: 'حي حيدرة، نهج الإخوة بوعدو، الجزائر العاصمة',
+      itemCategory: 'ELECTRONICS',
+      itemDescription: 'شاشة طبية دقيقة ومستلزمات فحص مخبري',
+      itemPhotos: ['https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400&auto=format&fit=crop&q=80'],
+      dimensionsCm: { length: 28, width: 22, height: 10 },
+      idempotencyKey: 'idemp-intake-01',
+      declaredValue: 350.0,
+      currency: 'USD',
+      estimatedWeightKg: 2.8,
+      actualWeightKg: 2.8,
+      securitySealId: 'SEAL-JO-827',
+      shippingCost: 45.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 350.0,
+      currentStatus: 'IN_TRANSIT',
+      assignedTripId: 'trip-rj517',
+      assignedTravelerId: 'usr-traveler-201',
+      assignedTravelerName: 'Ahmed Benali',
+      flightNumber: 'RJ517',
+      airline: 'Royal Jordanian',
+      createdAt: '2026-09-11T10:00:00Z',
+      updatedAt: '2026-09-12T07:30:00Z',
+    };
+
+    const intakeShip2: Shipment = {
+      id: 'ship-intake-02',
+      trackingNumber: 'TH-260912-0183',
+      serviceType: 'SEND_PARCEL',
+      senderId: 'usr-sender-102',
+      senderName: 'م. سارة عبد الله',
+      senderPhone: '+962 78 555 1234',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'كريم بلعباس',
+      recipientPhone: '+213 55 889 0011',
+      recipientAddress: 'الجزائر العاصمة، القبة، شارع القدس',
+      itemCategory: 'ELECTRONICS',
+      itemDescription: 'ملحقات حاسوب وشواحن معتمدة ومغلفة أمنياً',
+      itemPhotos: ['https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&auto=format&fit=crop&q=80'],
+      dimensionsCm: { length: 25, width: 20, height: 8 },
+      idempotencyKey: 'idemp-intake-02',
+      declaredValue: 280.0,
+      currency: 'USD',
+      estimatedWeightKg: 3.1,
+      actualWeightKg: 3.1,
+      securitySealId: 'SEAL-JO-828',
+      shippingCost: 40.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 280.0,
+      currentStatus: 'IN_TRANSIT',
+      assignedTripId: 'trip-rj517',
+      assignedTravelerId: 'usr-traveler-201',
+      assignedTravelerName: 'Ahmed Benali',
+      flightNumber: 'RJ517',
+      airline: 'Royal Jordanian',
+      createdAt: '2026-09-11T11:00:00Z',
+      updatedAt: '2026-09-12T07:30:00Z',
+    };
+
+    const intakeShip3: Shipment = {
+      id: 'ship-intake-03',
+      trackingNumber: 'TH-260912-0184',
+      serviceType: 'SEND_PARCEL',
+      senderId: 'usr-sender-103',
+      senderName: 'محمد الكردي',
+      senderPhone: '+962 79 987 6543',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'رياض محرز بن عمار',
+      recipientPhone: '+213 66 777 4433',
+      recipientAddress: 'قسنطينة، وسط المدينة',
+      itemCategory: 'OTHER_SAFE_GOODS',
+      itemDescription: 'مراجع علمية وأدوات قياس هندسية',
+      itemPhotos: ['https://images.unsplash.com/photo-1568667256549-094345857637?w=400&auto=format&fit=crop&q=80'],
+      dimensionsCm: { length: 30, width: 22, height: 5 },
+      idempotencyKey: 'idemp-intake-03',
+      declaredValue: 180.0,
+      currency: 'USD',
+      estimatedWeightKg: 2.5,
+      actualWeightKg: 2.5,
+      securitySealId: 'SEAL-JO-829',
+      shippingCost: 35.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 180.0,
+      currentStatus: 'IN_TRANSIT',
+      assignedTripId: 'trip-rj517',
+      assignedTravelerId: 'usr-traveler-201',
+      assignedTravelerName: 'Ahmed Benali',
+      flightNumber: 'RJ517',
+      airline: 'Royal Jordanian',
+      createdAt: '2026-09-11T12:00:00Z',
+      updatedAt: '2026-09-12T07:30:00Z',
+    };
+
+    const intakeShip4: Shipment = {
+      id: 'ship-intake-04',
+      trackingNumber: 'TH-260912-0185',
+      serviceType: 'SEND_PARCEL',
+      senderId: 'usr-sender-104',
+      senderName: 'يزيد التميمي',
+      senderPhone: '+962 79 000 1122',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'فاطمة الزهراء بوعلام',
+      recipientPhone: '+213 55 123 8899',
+      recipientAddress: 'وهران، حي السلام، إقامة الياسمين',
+      itemCategory: 'CLOTHING_TEXTILES',
+      itemDescription: 'وثائق أكاديمية مصدقة وأقمشة مطرزة',
+      itemPhotos: ['https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=400&auto=format&fit=crop&q=80'],
+      dimensionsCm: { length: 25, width: 20, height: 10 },
+      idempotencyKey: 'idemp-intake-04',
+      declaredValue: 220.0,
+      currency: 'USD',
+      estimatedWeightKg: 3.4,
+      actualWeightKg: 3.4,
+      securitySealId: 'SEAL-JO-830',
+      shippingCost: 42.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 220.0,
+      currentStatus: 'IN_TRANSIT',
+      assignedTripId: 'trip-rj517',
+      assignedTravelerId: 'usr-traveler-201',
+      assignedTravelerName: 'Ahmed Benali',
+      flightNumber: 'RJ517',
+      airline: 'Royal Jordanian',
+      createdAt: '2026-09-11T14:00:00Z',
+      updatedAt: '2026-09-12T07:30:00Z',
+    };
+
+    const intakeShip5: Shipment = {
+      id: 'ship-intake-05',
+      trackingNumber: 'TH-260912-0186',
+      serviceType: 'SEND_PARCEL',
+      senderId: 'usr-sender-105',
+      senderName: 'عمر النجار',
+      senderPhone: '+962 78 888 9911',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      recipientName: 'سمير قادري',
+      recipientPhone: '+213 77 888 9900',
+      recipientAddress: 'الجزائر العاصمة، باب الوادي',
+      itemCategory: 'GIFTS_COSMETICS',
+      itemDescription: 'مستحضرات عناية طبيعية وبن محمص فاخر',
+      itemPhotos: ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&auto=format&fit=crop&q=80'],
+      dimensionsCm: { length: 20, width: 15, height: 8 },
+      idempotencyKey: 'idemp-intake-05',
+      declaredValue: 220.0,
+      currency: 'USD',
+      estimatedWeightKg: 2.4,
+      actualWeightKg: 2.4,
+      securitySealId: 'SEAL-JO-831',
+      shippingCost: 32.0,
+      customsDutyEstimated: 0.0,
+      escrowDepositRequired: 220.0,
+      currentStatus: 'IN_TRANSIT',
+      assignedTripId: 'trip-rj517',
+      assignedTravelerId: 'usr-traveler-201',
+      assignedTravelerName: 'Ahmed Benali',
+      flightNumber: 'RJ517',
+      airline: 'Royal Jordanian',
+      createdAt: '2026-09-11T15:00:00Z',
+      updatedAt: '2026-09-12T07:30:00Z',
+    };
+
+    this.shipments.set(intakeShip1.id, intakeShip1);
+    this.shipments.set(intakeShip2.id, intakeShip2);
+    this.shipments.set(intakeShip3.id, intakeShip3);
+    this.shipments.set(intakeShip4.id, intakeShip4);
+    this.shipments.set(intakeShip5.id, intakeShip5);
+
+    const manifestIntakeRJ517: Manifest = {
+      id: 'MF-260912-001',
+      manifestCode: 'MF-260912-001',
+      manifestNumber: 'MF-260912-001',
+      tripId: 'trip-rj517',
+      travelerId: 'usr-traveler-201',
+      travelerName: 'Ahmed Benali',
+      assignedTravelerName: 'Ahmed Benali',
+      airline: 'Royal Jordanian',
+      flightNumber: 'RJ517',
+      originHubId: 'hub-amm',
+      destinationHubId: 'hub-alg',
+      shipmentIds: ['ship-intake-01', 'ship-intake-02', 'ship-intake-03', 'ship-intake-04', 'ship-intake-05'],
+      totalPackages: 5,
+      totalShipmentsCount: 5,
+      totalWeightKg: 14.2,
+      totalDeclaredValue: 1250.0,
+      status: 'HANDED_OVER',
+      currentStatus: 'HANDED_OVER',
+      tamperSealIds: ['SEAL-JO-827', 'SEAL-JO-828', 'SEAL-JO-829', 'SEAL-JO-830', 'SEAL-JO-831'],
+      createdAt: '2026-09-12T04:00:00Z',
+      updatedAt: '2026-09-12T07:30:00Z',
+      dispatchTimestamp: '2026-09-12T07:30:00Z',
+      dispatchedByAgentId: 'usr-agent-303',
+      handoverToken: 'HMAC_TOKEN_RJ517_260912',
+    };
+    this.manifests.set(manifestIntakeRJ517.id, manifestIntakeRJ517);
+
+    // 6. Seed Financial Transactions (Double-Entry Ledger)
+    const tx1: FinancialTransaction = {
+      id: 'tx-001',
+      transactionCode: 'TXN-SHP-2026-1011',
+      walletId: this.wallets.get('usr-sender-101')!.id,
+      userId: 'usr-sender-101',
+      userName: 'طارق الهاشمي',
+      shipmentId: ship1.id,
+      type: 'SHIPPING_PAYMENT',
+      amount: 52.5,
+      currency: 'USD',
+      exchangeRateToUsd: 1.0,
+      idempotencyKey: 'idemp-tx-001',
+      status: 'COMMITTED',
+      referenceNote: 'سداد رسوم الشحن والتأمين لطرد TH-JOR-ALG-202608-8841',
+      createdAt: new Date(Date.now() - 36 * 3600000).toISOString(),
+    };
+
+    const tx2: FinancialTransaction = {
+      id: 'tx-002',
+      transactionCode: 'TXN-ESC-2026-2022',
+      walletId: this.wallets.get('usr-traveler-202')!.id,
+      userId: 'usr-traveler-202',
+      userName: 'كريم بوجمعة',
+      tripId: trip1.id,
+      type: 'ESCROW_LOCK',
+      amount: 650.0,
+      currency: 'USD',
+      exchangeRateToUsd: 1.0,
+      idempotencyKey: 'idemp-tx-002',
+      status: 'COMMITTED',
+      referenceNote: 'حجز مبلغ الضمان المالي المسترد (Escrow) لرحلة RJ511 طرود بقيمة $650',
+      createdAt: new Date(Date.now() - 24 * 3600000).toISOString(),
+    };
+
+    this.transactions.set(tx1.id, tx1);
+    this.transactions.set(tx2.id, tx2);
+
+    // 6.1 Seed Initial Dispute Claim (Dual-Hub Arbitration: Jordan & Algeria)
+    const disp1: Dispute = {
+      id: 'disp-2026-001',
+      shipmentId: ship1.id,
+      trackingNumber: ship1.trackingNumber,
+      claimantId: 'usr-sender-101',
+      claimantName: 'طارق الهاشمي (Tariq Al-Hashemi)',
+      claimantRole: 'SENDER',
+      priority: 'HIGH',
+      reason: 'TAMPERED_SEAL',
+      description: 'ملاحظة اشتباه بوجود تمزق في شريط التغليف الخارجي للختم الإلكتروني أثناء تسليم المانيفست بالفرع، يرجى فحص الكاميرات وتأكيد مطابقة السيريال.',
+      evidencePhotos: [
+        'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80',
+        'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&auto=format&fit=crop&q=80'
+      ],
+      claimAmount: 650.0,
+      currency: 'USD',
+      status: 'UNDER_REVIEW',
+      // Origin Hub Reviewer (Jordan / Amman)
+      originHubId: 'hub-amm',
+      originHubName: 'مركز عمان الرئيسي (الأردن)',
+      originReview: {
+        employeeId: 'emp-amm-101',
+        employeeName: 'عمر النجار (Omar Al-Najjar)',
+        employeeStaffCode: 'EMP-AMM-101',
+        hubId: 'hub-amm',
+        hubName: 'مركز عمان الرئيسي (الأردن)',
+        hubCountryCode: 'JOR',
+        hubRole: 'ORIGIN',
+        decision: 'APPROVED_REFUND',
+        notes: 'تمت مراجعة سجلات الاستلام وتصوير الشحنة قبل الإرسال، نؤكد وجود أثر فتح غير مصرح به على الختم الأمني. أوافق على تعويض المرسل.',
+        decidedAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+        digitalSignature: 'HMAC_SIG_AMM_EMP101_7741',
+      },
+      // Destination Hub Reviewer (Algeria / Algiers)
+      destinationHubId: 'hub-alg',
+      destinationHubName: 'مركز الجزائر الدولي (الجزائر)',
+      destinationReview: {
+        employeeId: 'emp-alg-201',
+        employeeName: 'سفيان مرابط (Sofiane Merabet)',
+        employeeStaffCode: 'EMP-ALG-201',
+        hubId: 'hub-alg',
+        hubName: 'مركز الجزائر الدولي (الجزائر)',
+        hubCountryCode: 'DZA',
+        hubRole: 'DESTINATION',
+        decision: 'PENDING',
+        notes: '',
+      },
+      assignedEmployeeId: 'emp-alg-201',
+      assignedEmployeeName: 'سفيان مرابط (Sofiane Merabet)',
+      createdAt: new Date(Date.now() - 6 * 3600000).toISOString(),
+    };
+    this.disputes.set(disp1.id, disp1);
+
+    // 7. Seed Audit Logs
+    this.auditLogs.push(
+      {
+        id: 'aud-001',
+        actorId: 'usr-sender-101',
+        actorName: 'طارق الهاشمي',
+        actorRole: 'SENDER',
+        domain: 'Logistics',
+        action: 'CREATE_SHIPMENT',
+        resourceType: 'Shipment',
+        resourceId: ship1.id,
+        details: { trackingNumber: ship1.trackingNumber, declaredValue: 650 },
+        createdAt: new Date(Date.now() - 36 * 3600000).toISOString(),
+      },
+      {
+        id: 'aud-002',
+        actorId: 'usr-agent-303',
+        actorName: 'عمر النجار',
+        actorRole: 'HUB_AGENT',
+        domain: 'HubOperations',
+        action: 'INSPECT_AND_APPLY_SEAL',
+        resourceType: 'Shipment',
+        resourceId: ship1.id,
+        details: { sealId: ship1.securitySealId, actualKg: 2.3 },
+        createdAt: new Date(Date.now() - 12 * 3600000).toISOString(),
+      },
+      {
+        id: 'aud-003',
+        actorId: 'usr-traveler-202',
+        actorName: 'كريم بوجمعة',
+        actorRole: 'TRAVELER',
+        domain: 'Escrow',
+        action: 'LOCK_SECURITY_DEPOSIT',
+        resourceType: 'Trip',
+        resourceId: trip1.id,
+        details: { amount: 650, pnr: 'RJ892B' },
+        createdAt: new Date(Date.now() - 24 * 3600000).toISOString(),
+      }
+    );
+
+    // 8. Seed Real-time System Notifications
+    this.notifications = [
+      {
+        id: 'notif-001',
+        type: 'ORDER_CREATED',
+        titleAr: 'طلب شحن جديد بانتظار الفحص',
+        titleEn: 'New Parcel Order Created',
+        messageAr: 'قام طارق الهاشمي بإنشاء طلب إرسال طرد iPad Pro (TH-JOR-ALG-202608-8841) من فرع عمان إلى فرع الجزائر.',
+        messageEn: 'Tariq Al-Hashemi created a parcel shipment (TH-JOR-ALG-202608-8841) from Amman to Algiers.',
+        targetRole: 'MASTER_ADMIN',
+        referenceId: ship1.id,
+        isRead: false,
+        priority: 'NORMAL',
+        createdAt: new Date(Date.now() - 30 * 60000).toISOString(),
+      },
+      {
+        id: 'notif-002',
+        type: 'KYC_SUBMITTED',
+        titleAr: 'وثائق هوية مسافر جديدة للتدقيق',
+        titleEn: 'New Traveler KYC Submitted',
+        messageAr: 'قام المسافر كريم بوجمعة برفع صور جواز السفر وبطاقة الهوية الوطنية بانتظار اعتماد الإدارة.',
+        messageEn: 'Traveler Karim Boujemaa uploaded passport & national ID documents awaiting Admin approval.',
+        targetRole: 'MASTER_ADMIN',
+        referenceId: 'usr-traveler-202',
+        isRead: false,
+        priority: 'HIGH',
+        createdAt: new Date(Date.now() - 55 * 60000).toISOString(),
+      },
+      {
+        id: 'notif-003',
+        type: 'ESCROW_LOCKED',
+        titleAr: 'تم إيداع ضمان مالي مشدد (Escrow)',
+        titleEn: 'Security Escrow Deposit Locked',
+        messageAr: 'تم حجز مبلغ $650.00 في خزينة الضمان لرحلة RJ511 لتأمين سلامة طرود المسافر.',
+        messageEn: 'Escrow deposit of $650.00 locked in secure vault for flight RJ511.',
+        targetRole: 'MASTER_ADMIN',
+        referenceId: trip1.id,
+        isRead: true,
+        priority: 'NORMAL',
+        createdAt: new Date(Date.now() - 3 * 3600000).toISOString(),
+      },
+      {
+        id: 'notif-004',
+        type: 'INSPECTION_COMPLETED',
+        titleAr: 'اكتمال الفحص الأمني وتثبيت الختم',
+        titleEn: 'Hub Inspection & Security Seal Applied',
+        messageAr: 'قام ضابط الفرع عمر النجار بفحص وتثبيت الختم الأمني الإلكتروني (SEAL-AMM-98231).',
+        messageEn: 'Hub Agent Omar Al-Najjar inspected & sealed parcel (SEAL-AMM-98231).',
+        targetRole: 'MASTER_ADMIN',
+        referenceId: ship1.id,
+        isRead: true,
+        priority: 'NORMAL',
+        createdAt: new Date(Date.now() - 5 * 3600000).toISOString(),
+      },
+      {
+        id: 'notif-005',
+        type: 'DISPUTE_RAISED',
+        titleAr: 'تكليف بتحكيم نزاع: شحنة الأردن إلى الجزائر (فرع الاستلام)',
+        titleEn: 'Dual-Dispute Assigned: Jordan to Algeria (Destination)',
+        messageAr: 'تم تكليفك بالتحقيق في نزاع الشحنة TH-JOR-ALG-202608-8841 كمسؤول فرع الجزائر (ALG-01). وافق فرع عمان على التعويض وبانتظار قرارك لاعتماد النزاع.',
+        messageEn: 'Assigned as destination investigator for TH-JOR-ALG-202608-8841. Origin branch (Amman) approved refund. Awaiting your consensus decision.',
+        targetRole: 'HUB_MANAGER',
+        targetUserId: 'emp-alg-201',
+        referenceId: 'disp-2026-001',
+        isRead: false,
+        priority: 'HIGH',
+        createdAt: new Date(Date.now() - 15 * 60000).toISOString(),
+      },
+      {
+        id: 'notif-006',
+        type: 'DISPUTE_RAISED',
+        titleAr: 'تم تسجيل قرارك في نزاع شحنة TH-JOR-ALG-202608-8841',
+        titleEn: 'Your Origin Review Recorded',
+        messageAr: 'قام عمر النجار بتسجيل قرار فرع عمان (موافقة على التعويض). تم إشعار فرع الجزائر لاعتماد القرار المشترك.',
+        messageEn: 'Origin Hub (Amman) approved refund for TH-JOR-ALG-202608-8841. Algiers Hub notified for consensus.',
+        targetRole: 'HUB_AGENT',
+        targetUserId: 'emp-amm-101',
+        referenceId: 'disp-2026-001',
+        isRead: false,
+        priority: 'NORMAL',
+        createdAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+      },
+    ];
+  }
+
+  // Helper Methods for Atomic Operations & Queries
+  public pushNotification(notif: Omit<SystemNotification, 'id' | 'createdAt' | 'isRead'>): SystemNotification {
+    const fullNotif: SystemNotification = {
+      ...notif,
+      id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    };
+    this.notifications.unshift(fullNotif);
+    // Keep max 100 notifications
+    if (this.notifications.length > 100) {
+      this.notifications.pop();
+    }
+    return fullNotif;
+  }
+
+  public logAudit(log: Omit<AuditLog, 'id' | 'createdAt'>): AuditLog {
+    const fullLog: AuditLog = {
+      ...log,
+      id: `aud-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      createdAt: new Date().toISOString(),
+    };
+    this.auditLogs.unshift(fullLog);
+    return fullLog;
+  }
+
+  public recordTransaction(tx: Omit<FinancialTransaction, 'id' | 'createdAt'>): FinancialTransaction {
+    const fullTx: FinancialTransaction = {
+      ...tx,
+      id: `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      createdAt: new Date().toISOString(),
+    };
+    this.transactions.set(fullTx.id, fullTx);
+    return fullTx;
+  }
+}
+
+export const db = new DataStore();

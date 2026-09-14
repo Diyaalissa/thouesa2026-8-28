@@ -23,13 +23,17 @@ import {
   Scale,
   Menu,
   X,
+  Megaphone,
 } from 'lucide-react';
 import { 
   AuditLog,
+  DailyExchangeRate,
   ExchangeRate,
   Hub,
   Locale,
+  PublicAnnouncement,
   Shipment,
+  ShippingRate,
   User,
 } from '../../types';
 import {  formatCurrency } from '../../lib/crypto';
@@ -39,6 +43,7 @@ import {  ExchangeRatesManager } from './ExchangeRatesManager';
 import {  HubsManager } from './HubsManager';
 import {  CustomsDutyManager } from './CustomsDutyManager';
 import {  DisputesManager } from './DisputesManager';
+import {  AnnouncementsManager } from './AnnouncementsManager';
 
 interface AdminPortalProps {
   currentUser: User;
@@ -47,6 +52,12 @@ interface AdminPortalProps {
   locale: Locale;
   shipments?: Shipment[];
   hubs?: Hub[];
+  announcements?: PublicAnnouncement[];
+  shippingRates?: ShippingRate[];
+  exchangeRates?: DailyExchangeRate[];
+  onSaveAnnouncement?: (announcement: PublicAnnouncement) => void;
+  onDeleteAnnouncement?: (id: string) => void;
+  onToggleAnnouncementStatus?: (id: string) => void;
   onApproveKYC: (userId: string, status: 'APPROVED' | 'REJECTED') => Promise<void>;
   onTriggerCron: (jobType: string) => Promise<any>;
   onRefreshData: () => void;
@@ -60,6 +71,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   locale,
   shipments = [],
   hubs = [],
+  announcements = [],
+  shippingRates = [],
+  exchangeRates = [],
+  onSaveAnnouncement,
+  onDeleteAnnouncement,
+  onToggleAnnouncementStatus,
   onApproveKYC,
   onTriggerCron,
   onRefreshData,
@@ -68,10 +85,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const isAr = locale === 'ar';
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<
-    'METRICS' | 'EMPLOYEES' | 'DISPUTES' | 'KYC_MANAGER' | 'CUSTOMS_RULES' | 'RATES_LOCK' | 'AUDIT_LOGS' | 'CRON_TERMINAL' | 'SYSTEM_SETTINGS'
+    'METRICS' | 'EMPLOYEES' | 'DISPUTES' | 'KYC_MANAGER' | 'CUSTOMS_RULES' | 'RATES_LOCK' | 'ANNOUNCEMENTS' | 'AUDIT_LOGS' | 'CRON_TERMINAL' | 'SYSTEM_SETTINGS'
   >('METRICS');
   const [selectedUserForKyc, setSelectedUserForKyc] = useState<User | null>(null);
-  const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>(DEFAULT_EXCHANGE_RATES);
   const [cronRunning, setCronRunning] = useState(false);
   const [cronLogs, setCronLogs] = useState<string[]>([]);
 
@@ -347,6 +363,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <div className="text-xs font-bold truncate">{isAr ? 'تثبيت أسعار الصرف' : 'Exchange Rate Locks'}</div>
                   <div className={`text-[10px] truncate ${activeTab === 'RATES_LOCK' ? 'text-sky-100' : 'text-slate-400'}`}>
                     {isAr ? 'إدارة العملات والتحويل' : 'Manage currency rates'}
+                  </div>
+                </div>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('ANNOUNCEMENTS')}
+              className={`w-full flex items-center ${isSidebarOpen ? 'gap-3 px-3.5 py-3' : 'justify-center p-3'} rounded-xl transition-all cursor-pointer text-start ${
+                activeTab === 'ANNOUNCEMENTS' ? 'bg-purple-600 text-white shadow-md font-bold' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+              title={!isSidebarOpen ? (isAr ? 'الإعلانات والتنبيهات العامة' : 'Public Announcements') : undefined}
+            >
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${activeTab === 'ANNOUNCEMENTS' ? 'bg-purple-700 text-white' : 'bg-purple-100 text-purple-700'}`}>
+                <Megaphone className="w-4 h-4" />
+              </div>
+              {isSidebarOpen && (
+                <div className="truncate">
+                  <div className="text-xs font-bold truncate">{isAr ? 'الإعلانات والتنبيهات العامة' : 'Public Announcements'}</div>
+                  <div className={`text-[10px] truncate ${activeTab === 'ANNOUNCEMENTS' ? 'text-purple-100' : 'text-slate-400'}`}>
+                    {isAr ? 'إدارة بنرات الواجهة' : 'Manage landing banners'}
                   </div>
                 </div>
               )}
@@ -772,6 +808,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       {activeTab === 'RATES_LOCK' && (
         <ExchangeRatesManager
           locale={locale}
+          onRefreshGlobalState={onRefreshData}
+        />
+      )}
+
+      {/* TAB 4.5: ANNOUNCEMENTS & BANNERS OVERSIGHT */}
+      {activeTab === 'ANNOUNCEMENTS' && (
+        <AnnouncementsManager
+          locale={locale}
+          announcements={announcements}
+          onSaveAnnouncement={onSaveAnnouncement || (() => {})}
+          onDeleteAnnouncement={onDeleteAnnouncement || (() => {})}
+          onToggleAnnouncementStatus={onToggleAnnouncementStatus || (() => {})}
           onRefreshGlobalState={onRefreshData}
         />
       )}

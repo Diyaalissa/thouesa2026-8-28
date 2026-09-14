@@ -495,6 +495,32 @@ export default function App() {
     );
   };
 
+  const handleSaveAnnouncement = (announcement: PublicAnnouncement) => {
+    setAnnouncements((prev) => {
+      const idx = prev.findIndex((a) => a.id === announcement.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = announcement;
+        return copy;
+      }
+      return [announcement, ...prev];
+    });
+  };
+
+  const handleDeleteAnnouncement = (id: string) => {
+    setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  const handleToggleAnnouncementStatus = (id: string) => {
+    setAnnouncements((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, status: a.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE', updatedAt: new Date().toISOString() }
+          : a
+      )
+    );
+  };
+
   const isAr = locale === 'ar';
   const activeTheme = THEMES.find((t) => t.id === themeMode) || THEMES[0];
   const activeHubs = React.useMemo(() => hubs.filter((h) => h.isActive !== false), [hubs]);
@@ -551,6 +577,7 @@ export default function App() {
             locale={locale}
             hubs={activeHubs}
             trips={trips}
+            shipments={shipments}
             announcements={announcements}
             shippingRates={shippingRates}
             exchangeRates={exchangeRates}
@@ -638,6 +665,12 @@ export default function App() {
             locale={locale}
             shipments={shipments}
             hubs={hubs}
+            announcements={announcements}
+            shippingRates={shippingRates}
+            exchangeRates={exchangeRates}
+            onSaveAnnouncement={handleSaveAnnouncement}
+            onDeleteAnnouncement={handleDeleteAnnouncement}
+            onToggleAnnouncementStatus={handleToggleAnnouncementStatus}
             onApproveKYC={handleApproveKYC}
             onTriggerCron={handleTriggerCron}
             onRefreshData={fetchData}

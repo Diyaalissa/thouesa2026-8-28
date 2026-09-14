@@ -127,7 +127,8 @@ export const EmployeeTopbar: React.FC<EmployeeTopbarProps> = ({
             type="button"
             onClick={() => setHubDropdownOpen(!hubDropdownOpen)}
             className="h-9 flex items-center gap-2 px-2.5 sm:px-3 rounded-xl bg-slate-50/80 hover:bg-slate-100/90 border border-slate-200/80 hover:border-slate-300 transition-all cursor-pointer text-start shadow-2xs"
-            title={isAr ? 'الفرع التشغيلي الحالي' : 'Current Operational Hub'}
+            title={`${isAr ? 'الفرع الحالي' : 'Current Hub'}: ${isAr ? currentHub.nameAr : currentHub.nameEn} (${currentHub.code})`}
+            aria-label={`${isAr ? 'الفرع الحالي' : 'Current Hub'}: ${isAr ? currentHub.nameAr : currentHub.nameEn}`}
           >
             <Building2 className="w-4 h-4 text-amber-600 shrink-0" />
             <div className="flex items-center gap-1.5 text-xs">

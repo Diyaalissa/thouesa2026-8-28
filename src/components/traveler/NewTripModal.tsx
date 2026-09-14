@@ -187,36 +187,36 @@ export const NewTripModal: React.FC<NewTripModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm overflow-y-auto" dir={isAr ? 'rtl' : 'ltr'}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/80 backdrop-blur-sm overflow-y-auto" dir={isAr ? 'rtl' : 'ltr'}>
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden my-8"
+        className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col"
       >
         {/* Header with Boarding Style Gradient */}
-        <div className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 p-6 text-white relative">
+        <div className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 p-4 sm:p-6 text-white relative shrink-0">
           <button 
             onClick={onClose}
-            className="absolute top-5 end-5 w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors"
+            className="absolute top-4 sm:top-5 end-4 sm:end-5 w-8 h-8 sm:w-9 sm:h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
 
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-teal-500/20 border border-teal-500/40 rounded-xl flex items-center justify-center text-teal-300">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-teal-500/20 border border-teal-500/40 rounded-xl flex items-center justify-center text-teal-300 shrink-0">
               <Plane className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-black">{isAr ? 'تسجيل رحلة طيران جديدة' : 'Register Flight Trip'}</h2>
-              <p className="text-xs text-teal-200/80">
+              <h2 className="text-lg sm:text-xl font-black">{isAr ? 'تسجيل رحلة طيران جديدة' : 'Register Flight Trip'}</h2>
+              <p className="text-[11px] sm:text-xs text-teal-200/80">
                 {isAr ? 'سجّل بيانات رحلتك وسعتك المتاحة واكسب أرباحاً مضمونة مع THOUESA' : 'Register your flight schedule and available capacity with THOUESA'}
               </p>
             </div>
           </div>
 
-          <div className="mt-4 p-3 bg-white/10 rounded-2xl border border-white/10 flex items-center gap-3 text-xs">
-            <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div className="mt-3 sm:mt-4 p-2.5 sm:p-3 bg-white/10 rounded-xl sm:rounded-2xl border border-white/10 flex items-center gap-2.5 text-[11px] sm:text-xs">
+            <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 shrink-0" />
             <span className="text-slate-200">
               {isAr 
                 ? 'السرية التامة: لا تظهر أي بيانات تخصك للعملاء. إدارتنا ومكاتبنا هي الجهة الوحيدة التي تتعامل معها.' 
@@ -226,10 +226,10 @@ export const NewTripModal: React.FC<NewTripModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1">
           {errorMsg && (
-            <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-700 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0" />
+            <div className="p-3 sm:p-4 bg-rose-50 border border-rose-200 rounded-xl sm:rounded-2xl text-xs text-rose-700 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-rose-500 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
